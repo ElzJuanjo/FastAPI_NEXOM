@@ -5,16 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from infra.config.database import settings, engine
 from domain.entities.base import Base
+from interfaces.api.auth_router import router as auth_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: crea tablas si no existen (dev only)
     if settings.APP_ENV == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     yield
-    # Shutdown
     await engine.dispose()
 
 
@@ -30,6 +29,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Routers
+app.include_router(auth_router, prefix="/api/v1")
 
 
 @app.get("/health")

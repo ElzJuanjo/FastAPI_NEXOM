@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     APP_ENV: str = Field(default="development")
     DEBUG: bool = Field(default=False)
 
+    # JWT
+    JWT_SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
+    JWT_ALGORITHM: str = Field(default="HS256")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

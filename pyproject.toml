@@ -5,6 +5,11 @@ description = "Desarrollo backend para proyecto de automatización de e-commerce
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.18.4",
+    "asyncpg>=0.31.0",
     "fastapi>=0.135.1",
-    "uvicorn>=0.41.0",
+    "pydantic-settings>=2.13.1",
+    "python-dotenv>=1.2.2",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "uvicorn[standard]>=0.41.0",
 ]

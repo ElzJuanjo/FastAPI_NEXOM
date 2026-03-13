@@ -1,5 +1,3 @@
-## Arquitectura hexagonal
-
 Los **adapters** implementan los contratos definidos en `domain/repositories`.
 
 Aquí van:

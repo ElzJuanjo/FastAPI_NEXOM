@@ -1,5 +1,3 @@
-## Arquitectura hexagonal
-
 **Qué va aquí**
 
 * Contratos de acceso a datos.

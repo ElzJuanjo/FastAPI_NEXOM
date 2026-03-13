@@ -1,5 +1,3 @@
-## Microservicios
-
 Los DTO se usan para  **transportar datos entre capas** .
 
 En APIs HTTP suelen representar:

@@ -1,6 +1,4 @@
-## Clean Architecture
-
-Los routers son  **puntos de entrada HTTP** .
+Los **puntos de entrada HTTP** .
 
 Responsabilidades:
 

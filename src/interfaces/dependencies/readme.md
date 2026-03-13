@@ -1,5 +1,3 @@
-## Clean Architecture
-
 Ejemplo de uso conceptual:
 
 Un endpoint necesita ejecutar un caso de uso. En lugar de crear manualmente el repositorio, el broker de eventos y el use case dentro del endpoint, solicita una dependencia que se encarga de construirlos.

@@ -1,5 +1,3 @@
-## Microservicios
-
 Los **use cases** contienen la lógica de aplicación.
 
 Orquestan:

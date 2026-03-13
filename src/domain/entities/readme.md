@@ -1,5 +1,3 @@
-## Clean Architecture
-
 **Qué va aquí**
 
 * Entidades del dominio.

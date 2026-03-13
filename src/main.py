@@ -11,6 +11,7 @@ from interfaces.api.brand_router import router as brand_router
 from interfaces.api.product_router import router as product_router
 from interfaces.api.agent_router import config_router as agent_config_router, task_router as agent_task_router
 from interfaces.api.flow_router import router as flow_router
+from interfaces.api.agent_execute_router import router as agent_execute_router
 
 
 @asynccontextmanager
@@ -44,6 +45,7 @@ app.include_router(product_router, prefix="/api/v1")
 app.include_router(agent_config_router, prefix="/api/v1")
 app.include_router(agent_task_router, prefix="/api/v1")
 app.include_router(flow_router, prefix="/api/v1")
+app.include_router(agent_execute_router, prefix="/api/v1")
 
 
 @app.get("/health")

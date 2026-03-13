@@ -6,7 +6,6 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 | Archivo                      | Propósito                                        |
 | ---------------------------- | ------------------------------------------------- |
-| `.env`                     | Variables de entorno                              |
 | `infra/config/database.py` | Conexión async a Postgres, Settings con Pydantic |
 | `domain/entities/base.py`  | Base, UUIDPk, TimestampMixin, todos los Enums     |
 | `domain/entities/user.py`  | Entidades User y UserAuthProvider                 |
@@ -17,7 +16,6 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 | Archivo                                          | Propósito                                                  |
 | ------------------------------------------------ | ----------------------------------------------------------- |
-| `.env`                                         | (agregar JWT vars)                                          |
 | `infra/config/database.py`                     | (agregar JWT al Settings)                                   |
 | `infra/config/security.py`                     | Hashing y generación/verificación de JWT.                 |
 | `app/dto/auth_dto.py`                          | DTOs para autenticación: request bodies y response bodies. |
@@ -91,3 +89,17 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/flow_crud.py`                   | Casos de uso para Flow y FlowStep.                       |
 | `interfaces/dependencies/flow_dependencies.py` | Dependencias de inyección para Flow.                    |
 | `interfaces/api/flow_router.py`                | Endpoints de Flow y FlowStep.                            |
+
+### Sprint 7 - Integración con OpenRouter
+
+| Archivo                                                   | Propósito                                             |
+| --------------------------------------------------------- | ------------------------------------------------------ |
+| `infra/config/database.py`                              | (agregar settings)                                     |
+| `infra/tools/openrouter_client.py`                      | Cliente HTTP async para OpenRouter API.                |
+| `app/agents/base_agent.py`                              | Define el contrato que cada agente debe implementar.   |
+| `app/agents/product_search_agent.py`                    | Agente de Búsqueda de Productos.                      |
+| `app/agents/agent_registry.py`                          | Mapea AgentType a su clase de agente correspondiente.  |
+| `app/use_cases/agent_execute.py`                        | Ejecutar un agente.                                    |
+| `app/dto/agent_execute_dto.py`                          | DTOs para la ejecución de agentes.                    |
+| `interfaces/dependencies/agent_execute_dependencies.py` | Dependencias de inyección para ejecución de agentes. |
+| `interfaces/api/agent_execute_router.py`                | Endpoint para ejecutar agentes.                        |

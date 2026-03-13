@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+    
+    # OpenRouter
+    OPENROUTER_API_KEY: str = Field(..., description="OpenRouter API key")
+    OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

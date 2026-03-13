@@ -34,8 +34,7 @@ class Organization(UUIDPk, TimestampMixin, Base):
     members:       Mapped[List["OrganizationMember"]] = relationship(back_populates="organization", cascade="all, delete-orphan")
     brands:        Mapped[List["Brand"]]              = relationship(back_populates="organization")
     products:      Mapped[List["Product"]]             = relationship(back_populates="organization")
-    # TODO Sprint 5: descomentar cuando exista AgentConfig
-    # agent_configs: Mapped[List["AgentConfig"]]        = relationship(back_populates="organization")
+    agent_configs: Mapped[List["AgentConfig"]]        = relationship(back_populates="organization")
     # TODO Sprint 6: descomentar cuando exista Flow
     # flows:         Mapped[List["Flow"]]               = relationship(back_populates="organization")
     

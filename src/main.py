@@ -9,6 +9,7 @@ from interfaces.api.auth_router import router as auth_router
 from interfaces.api.org_router import router as org_router, plans_router
 from interfaces.api.brand_router import router as brand_router
 from interfaces.api.product_router import router as product_router
+from interfaces.api.agent_router import config_router as agent_config_router, task_router as agent_task_router
 
 
 @asynccontextmanager
@@ -39,6 +40,8 @@ app.include_router(org_router, prefix="/api/v1")
 app.include_router(plans_router, prefix="/api/v1")
 app.include_router(brand_router, prefix="/api/v1")
 app.include_router(product_router, prefix="/api/v1")
+app.include_router(agent_config_router, prefix="/api/v1")
+app.include_router(agent_task_router, prefix="/api/v1")
 
 
 @app.get("/health")

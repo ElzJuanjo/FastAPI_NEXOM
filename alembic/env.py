@@ -23,6 +23,7 @@ from domain.entities.plan import Plan
 from domain.entities.organization import Organization, Subscription, OrganizationMember
 from domain.entities.brand import Brand
 from domain.entities.product import Product
+from domain.entities.agent import AgentConfig, AgentTask
 
 # -- Alembic config --
 config = context.config

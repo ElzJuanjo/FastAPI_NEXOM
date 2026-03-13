@@ -67,3 +67,19 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `interfaces/api/brand_router.py`                  | Endpoints CRUD de Brand, scoped por organización.          |
 | `interfaces/api/product_router.py`                | Endpoints CRUD de Product, scoped por organización.        |
 | `main.py`                                         | (incluir routers)                                           |
+
+### Sprint 5 - Configuración de agentes y tareas
+
+| Archivo                                            | Propósito                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------- |
+| `domain/entities/agent.py`                       | Entidades AgentConfig y AgentTask.                          |
+| `domain/repositories/agent_config_repository.py` | Contrato de acceso a datos para AgentConfig.                |
+| `domain/repositories/agent_task_repository.py`   | Contrato de acceso a datos para AgentTask.                  |
+| `infra/adapters/agent_config_sqlalchemy.py`      | Implementación SQLAlchemy async del AgentConfigRepository. |
+| `infra/adapters/agent_task_sqlalchemy.py`        | Implementación SQLAlchemy async del AgentTaskRepository.   |
+| `app/dto/agent_dto.py`                           | DTOs para AgentConfig y AgentTask.                          |
+| `app/use_cases/agent_config_crud.py`             | Casos de uso para AgentConfig.                              |
+| `app/use_cases/agent_task_crud.py`               | Casos de uso para AgentTask.                                |
+| `interfaces/dependencies/agent_dependencies.py`  | Dependencias de inyección para AgentConfig y AgentTask.    |
+| `interfaces/api/agent_router.py`                 | Endpoints de AgentConfig y AgentTask.                       |
+| `main.py`                                        | (agregar routers)                                           |

@@ -41,9 +41,7 @@ class AgentTask(UUIDPk, TimestampMixin, Base):
     __tablename__ = "agent_tasks"
 
     agent_config_id: Mapped[Optional[str]]      = mapped_column(UUID(as_uuid=False), ForeignKey("agent_configs.id", ondelete="SET NULL"), nullable=True)
-    flow_step_id:    Mapped[Optional[str]]      = mapped_column(UUID(as_uuid=False), nullable=True)
-    # TODO Sprint 6: restaurar ForeignKey cuando exista flow_steps
-    # flow_step_id:    Mapped[Optional[str]]      = mapped_column(UUID(as_uuid=False), ForeignKey("flow_steps.id", ondelete="SET NULL"), nullable=True)
+    flow_step_id:    Mapped[Optional[str]]      = mapped_column(UUID(as_uuid=False), ForeignKey("flow_steps.id", ondelete="SET NULL"), nullable=True)
     status:          Mapped[StepStatus]         = mapped_column(Enum(StepStatus), default=StepStatus.PENDING, nullable=False)
     input_payload:   Mapped[Optional[dict]]     = mapped_column(JSONB)
     output_payload:  Mapped[Optional[dict]]     = mapped_column(JSONB)
@@ -55,8 +53,7 @@ class AgentTask(UUIDPk, TimestampMixin, Base):
     duration_ms:     Mapped[Optional[int]]      = mapped_column(Integer)
 
     agent_config: Mapped[Optional["AgentConfig"]] = relationship(back_populates="tasks")
-    # TODO Sprint 6: descomentar cuando exista FlowStep
-    # flow_step:    Mapped[Optional["FlowStep"]]    = relationship(back_populates="tasks")
+    flow_step:    Mapped[Optional["FlowStep"]]    = relationship(back_populates="tasks")
 
     __table_args__ = (
         Index("ix_agent_tasks_config_id",  "agent_config_id"),

@@ -24,6 +24,7 @@ from domain.entities.organization import Organization, Subscription, Organizatio
 from domain.entities.brand import Brand
 from domain.entities.product import Product
 from domain.entities.agent import AgentConfig, AgentTask
+from domain.entities.flow import Flow, FlowStep
 
 # -- Alembic config --
 config = context.config

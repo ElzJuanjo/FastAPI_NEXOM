@@ -28,7 +28,6 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/auth_refresh.py`                | Renovar access token usando refresh token.                  |
 | `interfaces/dependencies/auth_dependencies.py` | Dependencias de inyección para auth.                       |
 | `interfaces/api/auth_router.py`                | Endpoints de autenticación: register, login, refresh, me.  |
-| `main.py`                                      | (incluir auth_router)                                       |
 
 ### Sprint 3 - Organizaciones
 
@@ -46,7 +45,6 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/plan_seed.py`                     | Seed de planes iniciales.                                          |
 | `interfaces/dependencies/org_dependencies.py`    | Dependencias de inyección para Organizations y Plans.             |
 | `interfaces/api/org_router.py`                   | Endpoints de Organizations y Plans.                                |
-| `main.py`                                        | (incluir org_router)                                               |
 
 ### Sprint 4 - Marcas y productos
 
@@ -66,7 +64,6 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `interfaces/dependencies/product_dependencies.py` | Dependencias de inyección para Product.                    |
 | `interfaces/api/brand_router.py`                  | Endpoints CRUD de Brand, scoped por organización.          |
 | `interfaces/api/product_router.py`                | Endpoints CRUD de Product, scoped por organización.        |
-| `main.py`                                         | (incluir routers)                                           |
 
 ### Sprint 5 - Configuración de agentes y tareas
 
@@ -82,4 +79,15 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/agent_task_crud.py`               | Casos de uso para AgentTask.                                |
 | `interfaces/dependencies/agent_dependencies.py`  | Dependencias de inyección para AgentConfig y AgentTask.    |
 | `interfaces/api/agent_router.py`                 | Endpoints de AgentConfig y AgentTask.                       |
-| `main.py`                                        | (agregar routers)                                           |
+
+### Sprint 6 - Flujos y orquestación
+
+| Archivo                                          | Propósito                                               |
+| ------------------------------------------------ | -------------------------------------------------------- |
+| `domain/entities/flow.py`                      | Entidades Flow y FlowStep — orquestación multi-agente. |
+| `domain/repositories/flow_repository.py`       | Contrato de acceso a datos para Flow y FlowStep.         |
+| `infra/adapters/flow_sqlalchemy.py`            | Implementación SQLAlchemy async del FlowRepository.     |
+| `app/dto/flow_dto.py`                          | DTOs para Flow y FlowStep.                               |
+| `app/use_cases/flow_crud.py`                   | Casos de uso para Flow y FlowStep.                       |
+| `interfaces/dependencies/flow_dependencies.py` | Dependencias de inyección para Flow.                    |
+| `interfaces/api/flow_router.py`                | Endpoints de Flow y FlowStep.                            |

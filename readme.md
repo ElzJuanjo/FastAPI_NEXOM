@@ -1,5 +1,7 @@
 # NexOS - Automatización de e-commerce
 
+Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
+
 ### Sprint 1 - Fundación
 
 | Archivo                      | Propósito                                        |
@@ -28,13 +30,20 @@
 | `interfaces/api/auth_router.py`                | Endpoints de autenticación: register, login, refresh, me.  |
 | `main.py`                                      | (incluir auth_router)                                       |
 
-| Endpoint                   | Descripción                                           |
-| -------------------------- | ------------------------------------------------------ |
-| POST /api/v1/auth/register | registro por email, retorna user + tokens              |
-| POST /api/v1/auth/login    | login por email/password, retorna user + tokens        |
-| POST /api/v1/auth/refresh  | renueva access+refresh con refresh token válido       |
-| GET /api/v1/auth/me        | retorna el usuario autenticado (requiere Bearer token) |
+### Sprint 3 - Organizaciones
 
-
-
-Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
+| Archivo                                            | Propósito                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| `domain/entities/plan.py`                        | Definición de planes de suscripción.                             |
+| `domain/entities/organization.py`                | Entidades Organization, Subscription y OrganizationMember.         |
+| `domain/repositories/plan_repository.py`         | Contrato de acceso a datos para Plan.                              |
+| `domain/repositories/organization_repository.py` | Contrato de acceso a datos para Organization y OrganizationMember. |
+| `infra/adapters/plan_sqlalchemy.py`              | Implementación SQLAlchemy async del PlanRepository.               |
+| `infra/adapters/organization_sqlalchemy.py`      | Implementación SQLAlchemy async del OrganizationRepository.       |
+| `app/dto/organization_dto.py`                    | DTOs para Organizations, Plans y Members.                          |
+| `app/use_cases/org_create.py`                    | Crear organización.                                               |
+| `app/use_cases/org_list.py`                      | Listar organizaciones a las que pertenece un usuario.              |
+| `app/use_cases/plan_seed.py`                     | Seed de planes iniciales.                                          |
+| `interfaces/dependencies/org_dependencies.py`    | Dependencias de inyección para Organizations y Plans.             |
+| `interfaces/api/org_router.py`                   | Endpoints de Organizations y Plans.                                |
+| `main.py`                                        | (incluir org_router)                                               |

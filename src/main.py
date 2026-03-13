@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from infra.config.database import settings, engine
 from domain.entities.base import Base
 from interfaces.api.auth_router import router as auth_router
+from interfaces.api.org_router import router as org_router, plans_router
 
 
 @asynccontextmanager
@@ -32,6 +33,8 @@ app.add_middleware(
 
 # Routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(org_router, prefix="/api/v1")
+app.include_router(plans_router, prefix="/api/v1")
 
 
 @app.get("/health")

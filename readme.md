@@ -47,3 +47,23 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `interfaces/dependencies/org_dependencies.py`    | Dependencias de inyección para Organizations y Plans.             |
 | `interfaces/api/org_router.py`                   | Endpoints de Organizations y Plans.                                |
 | `main.py`                                        | (incluir org_router)                                               |
+
+### Sprint 4 - Marcas y productos
+
+| Archivo                                             | Propósito                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------- |
+| `domain/entities/brand.py`                        | Entidad Brand — identidad de marca.                        |
+| `domain/entities/product.py`                      | Entidad Product — productos gestionados por la plataforma. |
+| `domain/repositories/brand_repository.py`         | Contrato de acceso a datos para Brand.                      |
+| `domain/repositories/product_repository.py`       | Contrato de acceso a datos para Product.                    |
+| `infra/adapters/brand_sqlalchemy.py`              | Implementación SQLAlchemy async del BrandRepository.       |
+| `infra/adapters/product_sqlalchemy.py`            | Implementación SQLAlchemy async del ProductRepository.     |
+| `app/dto/brand_dto.py`                            | DTOs para Brand.                                            |
+| `app/dto/product_dto.py`                          | DTOs para Product.                                          |
+| `app/use_cases/brand_crud.py`                     | Casos de uso CRUD para Brand.                               |
+| `app/use_cases/product_crud.py`                   | Casos de uso CRUD para Product.                             |
+| `interfaces/dependencies/brand_dependencies.py`   | Dependencias de inyección para Brand.                      |
+| `interfaces/dependencies/product_dependencies.py` | Dependencias de inyección para Product.                    |
+| `interfaces/api/brand_router.py`                  | Endpoints CRUD de Brand, scoped por organización.          |
+| `interfaces/api/product_router.py`                | Endpoints CRUD de Product, scoped por organización.        |
+| `main.py`                                         | (incluir routers)                                           |

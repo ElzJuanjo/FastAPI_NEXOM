@@ -7,6 +7,8 @@ from infra.config.database import settings, engine
 from domain.entities.base import Base
 from interfaces.api.auth_router import router as auth_router
 from interfaces.api.org_router import router as org_router, plans_router
+from interfaces.api.brand_router import router as brand_router
+from interfaces.api.product_router import router as product_router
 
 
 @asynccontextmanager
@@ -35,6 +37,8 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(org_router, prefix="/api/v1")
 app.include_router(plans_router, prefix="/api/v1")
+app.include_router(brand_router, prefix="/api/v1")
+app.include_router(product_router, prefix="/api/v1")
 
 
 @app.get("/health")

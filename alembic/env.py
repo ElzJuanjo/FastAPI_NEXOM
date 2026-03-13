@@ -21,6 +21,8 @@ from domain.entities.base import Base
 from domain.entities.user import User, UserAuthProvider
 from domain.entities.plan import Plan
 from domain.entities.organization import Organization, Subscription, OrganizationMember
+from domain.entities.brand import Brand
+from domain.entities.product import Product
 
 # -- Alembic config --
 config = context.config

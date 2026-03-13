@@ -44,8 +44,6 @@ async def create_organization(
     await session.commit()
 
     # Recargar con relaciones para el response
-    from interfaces.dependencies.org_dependencies import get_org_repository
-    org_repo = get_org_repository.__wrapped__(session) if hasattr(get_org_repository, '__wrapped__') else OrganizationSQLAlchemyRepository(session)
     from infra.adapters.organization_sqlalchemy import OrganizationSQLAlchemyRepository
     org_repo = OrganizationSQLAlchemyRepository(session)
     org = await org_repo.get_by_id(org.id)

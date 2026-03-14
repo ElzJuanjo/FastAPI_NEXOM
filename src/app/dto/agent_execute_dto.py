@@ -23,6 +23,7 @@ class ExecuteAgentResponse(BaseModel):
     cost_usd: Optional[float] = None
     duration_ms: Optional[int] = None
     model: Optional[str] = None
+    scraped_sources: Optional[dict] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

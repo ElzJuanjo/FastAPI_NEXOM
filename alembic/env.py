@@ -18,18 +18,7 @@ from infra.config.database import settings
 from domain.entities.base import Base
 
 # Importar TODAS las entidades para que Base.metadata las conozca
-from domain.entities.user import User, UserAuthProvider
-from domain.entities.plan import Plan
-from domain.entities.organization import Organization, Subscription, OrganizationMember
-from domain.entities.brand import Brand
-from domain.entities.product import Product
-from domain.entities.agent import AgentConfig, AgentTask
-from domain.entities.flow import Flow, FlowStep
-from domain.entities.creative import Creative
-from domain.entities.landing_page import LandingPage, LandingPageSection
-from domain.entities.copy_asset import CopyAsset
-from domain.entities.conversion import ConversionAnalysis, OptimizationRecommendation
-from domain.entities.activity_log import ActivityLog
+from domain.entities import Base
 
 # -- Alembic config --
 config = context.config

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from infra.config.database import settings, engine
-from domain.entities.base import Base
+from domain.entities import Base
 from interfaces.api.auth_router import router as auth_router
 from interfaces.api.org_router import router as org_router, plans_router
 from interfaces.api.brand_router import router as brand_router

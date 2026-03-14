@@ -1,8 +1,8 @@
-"""add creatives landing_pages copy_assets conversions activity_logs
+"""add all models
 
-Revision ID: c0485626fd2e
+Revision ID: 96af9cfed03e
 Revises: 
-Create Date: 2026-03-13 21:30:56.878584
+Create Date: 2026-03-13 22:17:46.237316
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'c0485626fd2e'
+revision: str = '96af9cfed03e'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

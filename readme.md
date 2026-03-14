@@ -115,3 +115,11 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | Use Cases    | `creative_crud.py`,`landing_page_crud.py`                                                                                                      |
 | Dependencies | `creative_dependencies.py`,`landing_page_dependencies.py`                                                                                      |
 | Routers      | `creative_router.py`,`landing_page_router.py`                                                                                                  |
+
+### Sprint 9 - Agente de búsqueda de productos
+
+| Archivo                                | Propósito                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `infra/tools/mercadolibre_client.py` | Cliente de MercadoLibre vía SerpAPI.                                            |
+| `infra/tools/serpapi_client.py`      | Cliente async para SerpAPI — Google Shopping results.                           |
+| `infra/tools/ecommerce_scraper.py`   | Busca productos en AliExpress, Amazon, Temu y Shopee usando Google site: search. |

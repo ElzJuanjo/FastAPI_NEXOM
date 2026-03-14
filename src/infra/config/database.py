@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # OpenRouter
     OPENROUTER_API_KEY: str = Field(..., description="OpenRouter API key")
     OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
+    
+    # Scraping
+    SERPAPI_API_KEY: str = Field(default="", description="SerpAPI key for Google Shopping results")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

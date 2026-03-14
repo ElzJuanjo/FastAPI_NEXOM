@@ -86,6 +86,7 @@ class AgentExecute:
                 "content": result["content"],
                 "model": result["model"],
                 "finish_reason": result["finish_reason"],
+                "scraped_sources": result.get("scraped_sources"),
             }
             task.tokens_used = result["tokens_total"]
             task.cost_usd = self._estimate_cost(result["tokens_total"], model)

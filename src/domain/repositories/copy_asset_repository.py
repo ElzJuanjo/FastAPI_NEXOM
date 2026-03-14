@@ -1,0 +1,16 @@
+from abc import ABC, abstractmethod
+from typing import Optional, List
+from domain.entities.copy_asset import CopyAsset
+
+
+class CopyAssetRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, asset_id: str) -> Optional[CopyAsset]: ...
+    @abstractmethod
+    async def list_by_brand(self, brand_id: str) -> List[CopyAsset]: ...
+    @abstractmethod
+    async def create(self, asset: CopyAsset) -> CopyAsset: ...
+    @abstractmethod
+    async def update(self, asset: CopyAsset) -> CopyAsset: ...
+    @abstractmethod
+    async def soft_delete(self, asset_id: str) -> None: ...

@@ -103,3 +103,15 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/dto/agent_execute_dto.py`                          | DTOs para la ejecución de agentes.                    |
 | `interfaces/dependencies/agent_execute_dependencies.py` | Dependencias de inyección para ejecución de agentes. |
 | `interfaces/api/agent_execute_router.py`                | Endpoint para ejecutar agentes.                        |
+
+### Sprint 8 - BD 100%
+
+| Capa         | Archivos                                                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entidades    | `creative.py`,`landing_page.py`,`copy_asset.py`,`conversion.py`,`activity_log.py`                                                        |
+| Repositorios | `creative_repository.py`,`landing_page_repository.py`,`copy_asset_repository.py`,`conversion_repository.py`,`activity_log_repository.py` |
+| Adapters     | `creative_sqlalchemy.py`,`landing_page_sqlalchemy.py`,`copy_asset_sqlalchemy.py`,`conversion_sqlalchemy.py`,`activity_log_sqlalchemy.py` |
+| DTOs         | `creative_dto.py`,`landing_page_dto.py`                                                                                                        |
+| Use Cases    | `creative_crud.py`,`landing_page_crud.py`                                                                                                      |
+| Dependencies | `creative_dependencies.py`,`landing_page_dependencies.py`                                                                                      |
+| Routers      | `creative_router.py`,`landing_page_router.py`                                                                                                  |

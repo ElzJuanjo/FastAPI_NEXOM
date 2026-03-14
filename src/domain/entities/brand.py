@@ -32,7 +32,6 @@ class Brand(UUIDPk, TimestampMixin, Base):
 
     organization:  Mapped["Organization"]          = relationship(back_populates="brands")
     products:      Mapped[List["Product"]]         = relationship(back_populates="brand")
-    # TODO Sprint 8+: descomentar cuando existan estas entidades
-    # landing_pages: Mapped[List["LandingPage"]]     = relationship(back_populates="brand")
-    # copy_assets:   Mapped[List["CopyAsset"]]       = relationship(back_populates="brand")
-    # analyses:      Mapped[List["ConversionAnalysis"]] = relationship(back_populates="brand")
+    landing_pages: Mapped[List["LandingPage"]]     = relationship(back_populates="brand")
+    copy_assets:   Mapped[List["CopyAsset"]]       = relationship(back_populates="brand")
+    analyses:      Mapped[List["ConversionAnalysis"]] = relationship(back_populates="brand")

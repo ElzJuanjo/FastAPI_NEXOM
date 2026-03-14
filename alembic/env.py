@@ -25,6 +25,11 @@ from domain.entities.brand import Brand
 from domain.entities.product import Product
 from domain.entities.agent import AgentConfig, AgentTask
 from domain.entities.flow import Flow, FlowStep
+from domain.entities.creative import Creative
+from domain.entities.landing_page import LandingPage, LandingPageSection
+from domain.entities.copy_asset import CopyAsset
+from domain.entities.conversion import ConversionAnalysis, OptimizationRecommendation
+from domain.entities.activity_log import ActivityLog
 
 # -- Alembic config --
 config = context.config

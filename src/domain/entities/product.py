@@ -29,8 +29,7 @@ class Product(UUIDPk, TimestampMixin, Base):
 
     organization: Mapped["Organization"]   = relationship(back_populates="products")
     brand:        Mapped[Optional["Brand"]] = relationship(back_populates="products")
-    # TODO Sprint 8+: descomentar cuando exista Creative
-    # creatives:    Mapped[List["Creative"]]  = relationship(back_populates="product")
+    creatives:    Mapped[List["Creative"]]  = relationship(back_populates="product")
 
     __table_args__ = (
         Index("ix_products_org_id",    "organization_id"),

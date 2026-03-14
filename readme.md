@@ -123,3 +123,10 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `infra/tools/mercadolibre_client.py` | Cliente de MercadoLibre vía SerpAPI.                                            |
 | `infra/tools/serpapi_client.py`      | Cliente async para SerpAPI — Google Shopping results.                           |
 | `infra/tools/ecommerce_scraper.py`   | Busca productos en AliExpress, Amazon, Temu y Shopee usando Google site: search. |
+
+### Sprint 10 - Agente conectado a Dropi
+
+| Archivo                                 | Propósito                          |
+| --------------------------------------- | ----------------------------------- |
+| `infra/tools/dropi_client.py`         | Cliente async para la API de Dropi. |
+| `app/agents/dropi_connector_agent.py` | Agente conectado a Dropi.           |

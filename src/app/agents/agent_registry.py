@@ -6,11 +6,13 @@ Mapea AgentType a su clase de agente correspondiente.
 from infra.tools.openrouter_client import openrouter_client
 from .base_agent import BaseAgent
 from .product_search_agent import ProductSearchAgent
+from .dropi_connector_agent import DropiConnectorAgent
 
 
 # Mapeo de agent_type -> instancia del agente
 _AGENT_MAP: dict[str, BaseAgent] = {
     "product_search": ProductSearchAgent(openrouter_client),
+    "dropi_connector": DropiConnectorAgent(openrouter_client),
 }
 
 

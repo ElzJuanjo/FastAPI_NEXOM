@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     
     # Scraping
     SERPAPI_API_KEY: str = Field(default="", description="SerpAPI key for Google Shopping results")
+    
+    # Dropi
+    DROPI_API_BASE_URL: str = Field(default="https://api.dropi.co")
+    DROPI_EMAIL: str = Field(default="")
+    DROPI_PASSWORD: str = Field(default="")
+    DROPI_USE_MOCK: bool = Field(default=True)
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

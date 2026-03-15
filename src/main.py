@@ -16,6 +16,7 @@ from interfaces.api.creative_router import router as creative_router
 from interfaces.api.landing_page_router import router as landing_page_router
 from interfaces.api.orchestrator_router import router as orchestrator_router
 from interfaces.api.flow_execute_router import router as flow_execute_router
+from interfaces.api.flow_template_router import router as flow_template_router
 
 
 @asynccontextmanager
@@ -54,6 +55,7 @@ app.include_router(creative_router, prefix="/api/v1")
 app.include_router(landing_page_router, prefix="/api/v1")
 app.include_router(orchestrator_router, prefix="/api/v1")
 app.include_router(flow_execute_router, prefix="/api/v1")
+app.include_router(flow_template_router, prefix="/api/v1")
 
 
 @app.get("/health")

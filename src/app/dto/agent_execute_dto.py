@@ -24,6 +24,8 @@ class ExecuteAgentResponse(BaseModel):
     duration_ms: Optional[int] = None
     model: Optional[str] = None
     scraped_sources: Optional[dict] = None
+    images: Optional[list[str]] = None
+    image_count: Optional[int] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -150,3 +150,20 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/dto/flow_execute_dto.py`                          | DTOs para ejecución de Flows.                                        |
 | `interfaces/dependencies/flow_execute_dependencies.py` | Dependencias para ejecución de Flows.                                |
 | `interfaces/api/flow_execute_router.py`                | Endpoint para ejecutar Flows automáticamente.                        |
+
+### Sprint 12 - Agentes restantes
+
+| Archivo                                    | Propósito                                                      |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| `app/agents/branding_agent.py`           | Genera identidad de marca completa.                             |
+| `app/agents/copywriting_agent.py`        | Genera textos de venta, headlines, emails, anuncios.            |
+| `app/agents/ads_agent.py`                | Crea campañas publicitarias para Meta Ads, Google Ads, TikTok. |
+| `app/agents/landing_page_agent.py`       | Diseña y genera estructura de landing pages de venta.          |
+| `app/agents/store_dev_agent.py`          | Asesora y genera configuración de tienda online.               |
+| `app/agents/image_gen_agent.py`          | Genera imágenes reales de producto usando Gemini.              |
+| `app/agents/conversion_opt_agent.py`     | Analiza métricas y recomienda mejoras.                         |
+| `app/use_cases/flow_template.py`         | Templates de Flows predefinidos.                                |
+| `app/dto/flow_template_dto.py`           | DTOs para Flow Templates.                                       |
+| `interfaces/api/flow_template_router.py` | Endpoints para Flow Templates predefinidos.                     |
+| `app/agents/scoring.py`                  | Motor de scoring para productos ganadores.                      |
+| `app/agents/dropi_filters.py`            | Filtros de calidad para productos de Dropi.                     |

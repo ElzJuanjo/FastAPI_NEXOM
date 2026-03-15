@@ -56,5 +56,7 @@ async def execute_agent(
         duration_ms=task.duration_ms,
         model=model,
         scraped_sources=task.output_payload.get("scraped_sources") if task.output_payload else None,
+        images=task.output_payload.get("images") if task.output_payload else None,
+        image_count=task.output_payload.get("image_count") if task.output_payload else None,
         created_at=task.created_at,
     )

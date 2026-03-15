@@ -88,6 +88,9 @@ class AgentExecute:
                 "finish_reason": result["finish_reason"],
                 "scraped_sources": result.get("scraped_sources"),
                 "dropi_data": result.get("dropi_data"),
+                "images": result.get("images"),
+                "image_count": result.get("image_count"),
+                "generation_params": result.get("generation_params"),
             }
             task.tokens_used = result["tokens_total"]
             task.cost_usd = self._estimate_cost(result["tokens_total"], model)

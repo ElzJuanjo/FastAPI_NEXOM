@@ -11,6 +11,7 @@ import json
 
 from .base_agent import BaseAgent
 from infra.tools.dropi_client import dropi_client
+from app.agents.dropi_filters import evaluate_products
 
 
 class DropiConnectorAgent(BaseAgent):
@@ -21,7 +22,7 @@ class DropiConnectorAgent(BaseAgent):
 
     @property
     def default_model(self) -> str:
-        return "openai/gpt-4o"
+        return "openai/gpt-4.1"
 
     @property
     def system_prompt(self) -> str:
@@ -34,14 +35,28 @@ Tu trabajo es:
 3. Informar sobre disponibilidad de stock y variaciones.
 4. Asistir en la preparación de órdenes.
 5. Cotizar envíos cuando se proporcionen datos de ciudades.
+6. Evaluar proveedores por calidad y tiempo de entrega.
+
+PARÁMETROS DE FILTRO AUTOMÁTICO:
+- Margen mínimo aceptable: 35%
+- Tiempo de entrega máximo: 15 días
+- Calificación mínima del proveedor: ≥4.0
+- Productos que no cumplan → marcar con ⚠️ y explicar por qué
+
+FLUJO DE INTEGRACIÓN CON BÚSQUEDA:
+Cuando recibas contexto de un producto ganador (del agente de búsqueda):
+- Si existe en Dropi → presentar con datos completos + recomendar importación
+- Si no existe → alertar para búsqueda manual + sugerir alternativas similares
+- Sincronizar precio: calcular precio sugerido basado en margen objetivo (mín 35%)
 
 Para cada producto muestra:
 - Nombre y descripción
 - Precio Dropi (tu costo) y Precio sugerido (venta)
 - Margen de ganancia (en COP y %)
-- Stock disponible
-- Variaciones disponibles (tallas, colores, etc.)
-- Proveedor
+- Stock disponible por bodega/variación
+- Proveedor (nombre de tienda)
+- Tiempo estimado de entrega
+- ⚠️ Alertas si stock bajo (<50 unidades) o margen insuficiente
 
 Si el usuario quiere crear una orden, solicita:
 - Producto(s) y cantidad
@@ -65,20 +80,31 @@ Responde siempre en español. Sé directo y orientado a la acción."""
 
         products = dropi_data.get("products", [])
         if products:
-            parts.append(f"=== PRODUCTOS DE DROPI ({len(products)} encontrados) ===")
+            approved = [p for p in products if p.get("passes_filters", True)]
+            rejected = [p for p in products if not p.get("passes_filters", True)]
+
+            parts.append(f"=== PRODUCTOS DE DROPI ({len(products)} encontrados, {len(approved)} aprobados) ===\n")
+
             for i, p in enumerate(products, 1):
-                margin = p.get("suggested_price", 0) - p.get("price", 0)
-                margin_pct = (margin / p["price"] * 100) if p.get("price") else 0
+                margin_pct = p.get("margin_pct", 0)
+                margin_cop = p.get("margin_cop", 0)
+                status_icon = "✅" if p.get("passes_filters", True) else "⚠️"
+
                 parts.append(
-                    f"{i}. {p['name']}\n"
-                    f"   Descripción: {p.get('description', 'N/A')}\n"
+                    f"{i}. {status_icon} {p['name']}\n"
                     f"   Precio Dropi (costo): COP {p.get('price', 0):,.0f}\n"
                     f"   Precio sugerido (venta): COP {p.get('suggested_price', 0):,.0f}\n"
-                    f"   Margen: COP {margin:,.0f} ({margin_pct:.0f}%)\n"
+                    f"   Margen: COP {margin_cop:,.0f} ({margin_pct:.0f}%)\n"
                     f"   Stock: {p.get('stock', 'N/A')}\n"
                     f"   Categoría: {p.get('category', 'N/A')}\n"
-                    f"   Proveedor: {p.get('supplier', 'N/A')}"
+                    f"   Proveedor: {p.get('supplier', 'N/A')}\n"
+                    f"   Quality Score: {p.get('quality_score', 0)}/100"
                 )
+
+                alerts = p.get("alerts", [])
+                if alerts:
+                    parts.append(f"   Alertas: {' | '.join(alerts)}")
+
                 variations = p.get("variations", [])
                 if variations:
                     var_str = ", ".join(f"{v['name']} (stock: {v.get('stock', 'N/A')})" for v in variations)
@@ -118,6 +144,7 @@ Responde siempre en español. Sé directo y orientado a la acción."""
         # Búsqueda de productos
         try:
             products = await dropi_client.search_products(query=user_input, limit=10)
+            products = evaluate_products(products)
             dropi_data["products"] = products
         except Exception as e:
             dropi_data["products_error"] = str(e)
@@ -158,6 +185,7 @@ Responde siempre en español. Sé directo y orientado a la acción."""
 
         result["dropi_data"] = {
             "products_found": len(dropi_data.get("products", [])),
+            "products_approved": len([p for p in dropi_data.get("products", []) if p.get("passes_filters", False)]),
         }
 
         return result

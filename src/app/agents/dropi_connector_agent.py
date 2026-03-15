@@ -115,7 +115,7 @@ Responde siempre en español. Sé directo y orientado a la acción."""
         # Detectar intención y ejecutar acciones en Dropi
         input_lower = user_input.lower()
 
-        # Búsqueda de productos (por defecto)
+        # Búsqueda de productos
         try:
             products = await dropi_client.search_products(query=user_input, limit=10)
             dropi_data["products"] = products
@@ -158,7 +158,6 @@ Responde siempre en español. Sé directo y orientado a la acción."""
 
         result["dropi_data"] = {
             "products_found": len(dropi_data.get("products", [])),
-            "mode": "mock" if dropi_client._use_mock else "live",
         }
 
         return result

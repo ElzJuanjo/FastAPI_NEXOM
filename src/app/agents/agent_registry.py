@@ -7,12 +7,14 @@ from infra.tools.openrouter_client import openrouter_client
 from .base_agent import BaseAgent
 from .product_search_agent import ProductSearchAgent
 from .dropi_connector_agent import DropiConnectorAgent
+from .general_assistant_agent import GeneralAssistantAgent
 
 
 # Mapeo de agent_type -> instancia del agente
 _AGENT_MAP: dict[str, BaseAgent] = {
     "product_search": ProductSearchAgent(openrouter_client),
     "dropi_connector": DropiConnectorAgent(openrouter_client),
+    "general_assistant": GeneralAssistantAgent(openrouter_client),
 }
 
 

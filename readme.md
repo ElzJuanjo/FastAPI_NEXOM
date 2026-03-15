@@ -78,7 +78,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `interfaces/dependencies/agent_dependencies.py`  | Dependencias de inyección para AgentConfig y AgentTask.    |
 | `interfaces/api/agent_router.py`                 | Endpoints de AgentConfig y AgentTask.                       |
 
-### Sprint 6 - Flujos y orquestación
+### Sprint 6 - Flujos y orquestación (Definición)
 
 | Archivo                                          | Propósito                                               |
 | ------------------------------------------------ | -------------------------------------------------------- |
@@ -130,3 +130,23 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | --------------------------------------- | ----------------------------------- |
 | `infra/tools/dropi_client.py`         | Cliente async para la API de Dropi. |
 | `app/agents/dropi_connector_agent.py` | Agente conectado a Dropi.           |
+
+### Sprint 11 - Flujos y orquestación (Implementación)
+
+| Archivo                                                  | Propósito                                                            |
+| -------------------------------------------------------- | --------------------------------------------------------------------- |
+| `infra/config/llm_factory.py`                          | Factory para crear instancias de ChatModel que hablan con OpenRouter. |
+| `app/orchestration/state.py`                           | TypedDict que LangGraph usa para pasar datos entre nodos del grafo.   |
+| `app/orchestration/router_node.py`                     | Un LLM decide qué agente debe responder.                             |
+| `app/orchestration/executor_node.py`                   | Ejecuta el agente seleccionado por el router.                         |
+| `app/orchestration/orchestrator.py`                    | Orquestador principal de NexOS — LangGraph StateGraph.               |
+| `app/dto/orchestrator_dto.py`                          | DTOs para el orquestador.                                             |
+| `interfaces/api/orchestrator_router.py`                | Endpoint del orquestador — punto de entrada principal de NexOS.      |
+| `app/agents/general_assistant_agent.py`                | Maneja solicitudes ambiguas, saluda, guía al usuario y sugiere.      |
+| `app/orchestration/flow_state.py`                      | Estado para la ejecución de un Flow multi-agente.                    |
+| `app/orchestration/flow_planner.py`                    | Analiza dependencias entre steps y genera lotes de ejecución.        |
+| `app/orchestration/flow_executor.py`                   | Corre los steps de un Flow en orden.                                  |
+| `app/use_cases/flow_execute.py`                        | Ejecutar un Flow completo.                                            |
+| `app/dto/flow_execute_dto.py`                          | DTOs para ejecución de Flows.                                        |
+| `interfaces/dependencies/flow_execute_dependencies.py` | Dependencias para ejecución de Flows.                                |
+| `interfaces/api/flow_execute_router.py`                | Endpoint para ejecutar Flows automáticamente.                        |

@@ -1,117 +1,22 @@
 """
-Cliente async para la API de Dropi.
-Basado en la documentación oficial:
-- Auth via login (email/password) → token
-- Endpoints: productos, órdenes, ciudades, transportadoras, guías
-- Modo mock disponible cuando no hay credenciales
+Cliente async para la API de Integraciones de Dropi.
+Documentación: https://api.dropi.co/integrations/documentation
+
+Auth: header dropi-integration-key en todas las requests.
+El key se obtiene una vez desde el panel de Dropi y se guarda en .env
+
+Nota: Dropi bloquea requests con User-Agent de librerías Python (httpx, python-requests).
+Se usa requests con User-Agent custom ejecutado en asyncio.to_thread para compatibilidad async.
 """
 
 from __future__ import annotations
 
-import time
+import asyncio
 from typing import Optional
 
-import httpx
+import requests as http
 
 from infra.config.database import settings
-
-
-# ---------------------------------------------------------------------------
-# Mock data — datos realistas de Dropi para desarrollo sin credenciales
-# ---------------------------------------------------------------------------
-
-MOCK_PRODUCTS = [
-    {
-        "id": 100001,
-        "name": "Serum Vitamina C 30ml - Cuidado Facial",
-        "description": "Serum facial con vitamina C pura al 20%. Hidrata, ilumina y protege la piel.",
-        "price": 25000,
-        "suggested_price": 55000,
-        "currency": "COP",
-        "category": "Salud y Belleza",
-        "stock": 350,
-        "image_url": "https://via.placeholder.com/300x300?text=Serum+VitC",
-        "supplier": "BellezaPro CO",
-        "weight_gr": 120,
-        "variations": [
-            {"id": 1001, "name": "30ml", "price": 25000, "stock": 200},
-            {"id": 1002, "name": "50ml", "price": 38000, "stock": 150},
-        ],
-    },
-    {
-        "id": 100002,
-        "name": "Audífonos Bluetooth TWS i12 - Negro",
-        "description": "Audífonos inalámbricos Bluetooth 5.0. Estuche de carga incluido.",
-        "price": 12000,
-        "suggested_price": 35000,
-        "currency": "COP",
-        "category": "Tecnología",
-        "stock": 1200,
-        "image_url": "https://via.placeholder.com/300x300?text=TWS+i12",
-        "supplier": "TechImport SAS",
-        "weight_gr": 85,
-        "variations": [
-            {"id": 2001, "name": "Negro", "price": 12000, "stock": 600},
-            {"id": 2002, "name": "Blanco", "price": 12000, "stock": 600},
-        ],
-    },
-    {
-        "id": 100003,
-        "name": "Faja Reductora Colombiana - Cintura Avispa",
-        "description": "Faja reductora de alta compresión. Uso diario o post-parto.",
-        "price": 18000,
-        "suggested_price": 49900,
-        "currency": "COP",
-        "category": "Moda y Accesorios",
-        "stock": 800,
-        "image_url": "https://via.placeholder.com/300x300?text=Faja+Reductora",
-        "supplier": "ModaFit CO",
-        "weight_gr": 250,
-        "variations": [
-            {"id": 3001, "name": "S", "price": 18000, "stock": 200},
-            {"id": 3002, "name": "M", "price": 18000, "stock": 300},
-            {"id": 3003, "name": "L", "price": 18000, "stock": 200},
-            {"id": 3004, "name": "XL", "price": 18000, "stock": 100},
-        ],
-    },
-    {
-        "id": 100004,
-        "name": "Lámpara LED Sunset Projection",
-        "description": "Lámpara decorativa efecto atardecer. USB recargable. 16 colores.",
-        "price": 15000,
-        "suggested_price": 42000,
-        "currency": "COP",
-        "category": "Hogar y Decoración",
-        "stock": 450,
-        "image_url": "https://via.placeholder.com/300x300?text=Lamp+Sunset",
-        "supplier": "HomeTrend CO",
-        "weight_gr": 320,
-        "variations": [],
-    },
-    {
-        "id": 100005,
-        "name": "Banda Elástica de Resistencia Set x5",
-        "description": "Set de 5 bandas de resistencia para ejercicio. Diferentes niveles.",
-        "price": 8000,
-        "suggested_price": 25000,
-        "currency": "COP",
-        "category": "Deportes y Bienestar",
-        "stock": 2000,
-        "image_url": "https://via.placeholder.com/300x300?text=Bandas+Fitness",
-        "supplier": "FitGear CO",
-        "weight_gr": 180,
-        "variations": [],
-    },
-]
-
-MOCK_CITIES = [
-    {"id": 1, "name": "Bogotá", "department": "Cundinamarca"},
-    {"id": 2, "name": "Medellín", "department": "Antioquia"},
-    {"id": 3, "name": "Cali", "department": "Valle del Cauca"},
-    {"id": 4, "name": "Barranquilla", "department": "Atlántico"},
-    {"id": 5, "name": "Cartagena", "department": "Bolívar"},
-    {"id": 6, "name": "Bucaramanga", "department": "Santander"},
-]
 
 
 class DropisError(Exception):
@@ -123,45 +28,52 @@ class DropisError(Exception):
 
 class DropisClient:
 
+    BASE_URL = "https://api.dropi.co"
+    TIMEOUT = 30
+    HEADERS_BASE = {
+        "Content-Type": "application/json",
+        "Accept": "*/*",
+        "User-Agent": "PostmanRuntime/7.36.0",
+    }
+
     def __init__(self) -> None:
-        self._base_url = settings.DROPI_API_BASE_URL.rstrip("/")
-        self._email = settings.DROPI_EMAIL
-        self._password = settings.DROPI_PASSWORD
-        self._use_mock = settings.DROPI_USE_MOCK
-        self._token: Optional[str] = None
-        self._token_expiry: float = 0
-
-    # ---------------------------------------------------------------------------
-    # Auth
-    # ---------------------------------------------------------------------------
-
-    async def _ensure_auth(self) -> None:
-        """Obtiene o refresca el token de autenticación."""
-        if self._use_mock:
-            return
-
-        if self._token and time.time() < self._token_expiry:
-            return
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self._base_url}/login/sign-in",
-                json={"email": self._email, "password": self._password},
-            )
-
-        if response.status_code != 200:
-            raise DropisError(response.status_code, "Login fallido en Dropi")
-
-        data = response.json()
-        self._token = data.get("token") or data.get("access_token")
-        # Token válido por 23 horas (refresh antes de 24h)
-        self._token_expiry = time.time() + (23 * 3600)
+        self._integration_key = settings.DROPI_INTEGRATION_KEY
 
     def _headers(self) -> dict:
-        headers = {"Content-Type": "application/json"}
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
-        return headers
+        return {
+            **self.HEADERS_BASE,
+            "dropi-integration-key": self._integration_key,
+        }
+
+    def _ensure_key(self) -> None:
+        if not self._integration_key:
+            raise DropisError(401, "DROPI_INTEGRATION_KEY no configurado en .env")
+
+    # ---------------------------------------------------------------------------
+    # Request helpers (sync, ejecutados en thread)
+    # ---------------------------------------------------------------------------
+
+    def _post(self, path: str, payload: dict | None = None) -> dict:
+        resp = http.post(
+            f"{self.BASE_URL}{path}",
+            json=payload or {},
+            headers=self._headers(),
+            timeout=self.TIMEOUT,
+        )
+        if resp.status_code not in (200, 201):
+            raise DropisError(resp.status_code, resp.text)
+        return resp.json()
+
+    def _get(self, path: str, params: dict | None = None) -> dict:
+        resp = http.get(
+            f"{self.BASE_URL}{path}",
+            params=params,
+            headers=self._headers(),
+            timeout=self.TIMEOUT,
+        )
+        if resp.status_code != 200:
+            raise DropisError(resp.status_code, resp.text)
+        return resp.json()
 
     # ---------------------------------------------------------------------------
     # Productos
@@ -174,201 +86,242 @@ class DropisClient:
         page: int = 1,
         limit: int = 20,
     ) -> list[dict]:
-        """Busca productos en el catálogo de Dropi."""
-        if self._use_mock:
-            return self._mock_search(query, category, limit)
+        """
+        Busca productos en el catálogo de Dropi.
+        La API no soporta búsqueda por texto, así que traemos un lote
+        y filtramos localmente por nombre/categoría.
+        """
+        self._ensure_key()
 
-        await self._ensure_auth()
+        fetch_size = limit * 5 if query else limit
+        payload = {"pageSize": min(fetch_size, 100)}
 
-        params = {"page": page, "limit": limit}
+        data = await asyncio.to_thread(self._post, "/integrations/products/index", payload)
+        products_raw = data.get("objects", [])
+
+        results = [self._normalize_product(p) for p in products_raw if isinstance(products_raw, list)]
+
         if query:
-            params["search"] = query
-        if category:
-            params["category"] = category
+            q = query.lower()
+            words = q.split()
+            filtered = [
+                p for p in results
+                if any(
+                    word in p["name"].lower()
+                    or word in p.get("category", "").lower()
+                    for word in words
+                )
+            ]
+            results = filtered if filtered else results
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self._base_url}/products/public",
-                params=params,
-                headers=self._headers(),
-            )
-
-        if response.status_code != 200:
-            raise DropisError(response.status_code, response.text)
-
-        data = response.json()
-        return data.get("data", data.get("products", []))
+        return results[:limit]
 
     async def get_product(self, product_id: int) -> Optional[dict]:
         """Obtiene detalles de un producto por ID."""
-        if self._use_mock:
-            return next((p for p in MOCK_PRODUCTS if p["id"] == product_id), None)
-
-        await self._ensure_auth()
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self._base_url}/products/{product_id}",
-                headers=self._headers(),
-            )
-
-        if response.status_code != 200:
+        self._ensure_key()
+        try:
+            data = await asyncio.to_thread(self._get, f"/integrations/products/v2/{product_id}")
+            return self._normalize_product(data) if data else None
+        except DropisError:
             return None
-
-        return response.json()
 
     async def get_product_stock(self, product_id: int) -> Optional[dict]:
-        """Consulta stock en tiempo real."""
-        if self._use_mock:
-            product = next((p for p in MOCK_PRODUCTS if p["id"] == product_id), None)
-            if product:
-                return {"product_id": product_id, "stock": product["stock"], "variations": product.get("variations", [])}
-            return None
-
-        await self._ensure_auth()
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self._base_url}/products/{product_id}/stock",
-                headers=self._headers(),
-            )
-
-        if response.status_code != 200:
-            return None
-
-        return response.json()
+        """Consulta stock de un producto."""
+        product = await self.get_product(product_id)
+        if product:
+            return {
+                "product_id": product_id,
+                "stock": product.get("stock", 0),
+                "variations": product.get("variations", []),
+            }
+        return None
 
     # ---------------------------------------------------------------------------
     # Órdenes
     # ---------------------------------------------------------------------------
 
     async def create_order(self, order_data: dict) -> dict:
-        """
-        Crea una orden en Dropi.
-        order_data debe contener: customer_name, customer_phone, city_id,
-        address, products[{id, price, quantity, variation_id?}], total
-        """
-        if self._use_mock:
-            return {
-                "id": 999001,
-                "status": "created",
-                "tracking_number": "MOCK-TRK-001",
-                "message": "Orden mock creada exitosamente",
-                **order_data,
-            }
-
-        await self._ensure_auth()
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self._base_url}/orders/create",
-                json=order_data,
-                headers=self._headers(),
-            )
-
-        if response.status_code not in (200, 201):
-            raise DropisError(response.status_code, response.text)
-
-        return response.json()
+        """Crea una orden en Dropi."""
+        self._ensure_key()
+        return await asyncio.to_thread(self._post, "/integrations/orders/myorders", order_data)
 
     async def get_order(self, order_id: int) -> Optional[dict]:
         """Consulta estado de una orden."""
-        if self._use_mock:
-            return {
-                "id": order_id,
-                "status": "processing",
-                "tracking_number": "MOCK-TRK-001",
-                "shipping_status": "en_bodega",
-            }
-
-        await self._ensure_auth()
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self._base_url}/orders/{order_id}",
-                headers=self._headers(),
-            )
-
-        if response.status_code != 200:
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, f"/integrations/orders/myorders/{order_id}")
+        except DropisError:
             return None
 
-        return response.json()
+    async def list_orders(self, page: int = 1, per_page: int = 20, status: str = "") -> dict:
+        """Lista órdenes del usuario."""
+        self._ensure_key()
+        params = {"page": page, "per_page": per_page}
+        if status:
+            params["status"] = status
+        return await asyncio.to_thread(self._get, "/integrations/orders/myorders", params)
+
+    async def get_order_by_guide(self, guide: str) -> Optional[dict]:
+        """Busca orden por número de guía."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, f"/integrations/orders/myorderbyguide/{guide}")
+        except DropisError:
+            return None
 
     # ---------------------------------------------------------------------------
-    # Ciudades y Transportadoras
+    # Ciudades, Transportadoras, Cotización
     # ---------------------------------------------------------------------------
 
-    async def list_cities(self) -> list[dict]:
-        """Lista ciudades disponibles para envío."""
-        if self._use_mock:
-            return MOCK_CITIES
-
-        await self._ensure_auth()
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self._base_url}/cities",
-                headers=self._headers(),
-            )
-
-        if response.status_code != 200:
+    async def list_departments_with_cities(self) -> list[dict]:
+        """Lista departamentos con sus ciudades."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, "/integrations/department/all/with-cities")
+        except DropisError:
             return []
-
-        return response.json()
 
     async def get_shipping_quote(self, city_id: int, weight_gr: int) -> Optional[dict]:
         """Cotiza envío a una ciudad."""
-        if self._use_mock:
-            city = next((c for c in MOCK_CITIES if c["id"] == city_id), None)
-            base_cost = 8000 if city and city["name"] == "Bogotá" else 12000
-            return {
-                "city_id": city_id,
-                "city_name": city["name"] if city else "Desconocida",
-                "shipping_cost": base_cost + (weight_gr // 1000) * 2000,
-                "estimated_days": 2 if city and city["name"] == "Bogotá" else 4,
-            }
-
-        await self._ensure_auth()
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self._base_url}/shipping/quote",
-                json={"city_id": city_id, "weight": weight_gr},
-                headers=self._headers(),
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(
+                self._post,
+                "/integrations/orders/cotizaEnvioTransportadoraV2",
+                {"city_id": city_id, "weight": weight_gr},
             )
-
-        if response.status_code != 200:
+        except DropisError:
             return None
 
-        return response.json()
+    async def check_coverage(self, city_id: int) -> Optional[dict]:
+        """Verifica cobertura de envío en una ciudad."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, "/integrations/city/coverage/v2", {"city_id": city_id})
+        except DropisError:
+            return None
+
+    async def list_categories(self) -> list[dict]:
+        """Lista categorías disponibles."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, "/integrations/categories")
+        except DropisError:
+            return []
+
+    async def list_carriers(self) -> list[dict]:
+        """Lista transportadoras disponibles."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, "/integrations/distribution_companies")
+        except DropisError:
+            return []
+
+    async def whoami(self) -> Optional[dict]:
+        """Obtiene información del usuario autenticado."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._post, "/integrations/whoiam")
+        except DropisError:
+            return None
 
     # ---------------------------------------------------------------------------
-    # Mock helpers
+    # Bodegas
     # ---------------------------------------------------------------------------
 
-    def _mock_search(self, query: str, category: str, limit: int) -> list[dict]:
-            results = MOCK_PRODUCTS
+    async def list_warehouses(self) -> list[dict]:
+        """Lista bodegas del usuario."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, "/integrations/users/warehouses/index")
+        except DropisError:
+            return []
 
-            if query:
-                q = query.lower()
-                # Buscar en nombre, descripción y categoría
-                results = [
-                    p for p in results
-                    if q in p["name"].lower()
-                    or q in p.get("description", "").lower()
-                    or q in p.get("category", "").lower()
-                    or any(word in p["name"].lower() or word in p.get("description", "").lower() or word in p.get("category", "").lower() for word in q.split())
-                ]
+    # ---------------------------------------------------------------------------
+    # Pick ups
+    # ---------------------------------------------------------------------------
 
-            if category:
-                cat = category.lower()
-                results = [p for p in results if cat in p.get("category", "").lower()]
+    async def list_pickups(self) -> list[dict]:
+        """Lista pick ups programados."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, "/integrations/pick_ups")
+        except DropisError:
+            return []
 
-            # Si no hay match, devolver todo el catálogo
-            if not results:
-                results = MOCK_PRODUCTS
+    async def create_pickup(self, pickup_data: dict) -> dict:
+        """Crea un pick up."""
+        self._ensure_key()
+        return await asyncio.to_thread(self._post, "/integrations/pick_ups", pickup_data)
 
-            return results[:limit]
+    # ---------------------------------------------------------------------------
+    # Shop info
+    # ---------------------------------------------------------------------------
+
+    async def get_shop_data(self) -> Optional[dict]:
+        """Obtiene información de la tienda autenticada."""
+        self._ensure_key()
+        try:
+            return await asyncio.to_thread(self._get, "/integrations/shops/get/shop-data")
+        except DropisError:
+            return None
+
+    # ---------------------------------------------------------------------------
+    # Helpers
+    # ---------------------------------------------------------------------------
+
+    def _normalize_product(self, p: dict) -> dict:
+        """Normaliza un producto de Dropi al formato interno de NexOS."""
+        total_stock = 0
+        warehouses = p.get("warehouse_product", [])
+        if warehouses:
+            total_stock = sum(w.get("stock", 0) for w in warehouses)
+
+        variations = p.get("variations", [])
+        if variations and total_stock == 0:
+            total_stock = sum(v.get("stock", 0) for v in variations)
+
+        categories = p.get("categories", [])
+        category_name = categories[0].get("name", "") if categories else ""
+
+        user = p.get("user", {})
+        supplier_name = user.get("store_name", user.get("name", ""))
+
+        gallery = p.get("gallery", [])
+        image_url = ""
+        if gallery:
+            img = gallery[0]
+            image_url = img.get("url") or img.get("urlS3", "")
+            if image_url and not image_url.startswith("http"):
+                image_url = f"https://dropi.co/storage/{image_url}"
+
+        normalized_variations = []
+        for v in variations:
+            attrs = v.get("attribute_values", [])
+            attr_label = ", ".join(a.get("value", "") for a in attrs) if attrs else ""
+            normalized_variations.append({
+                "id": v.get("id"),
+                "name": attr_label,
+                "price": float(v.get("sale_price", 0) or 0),
+                "suggested_price": float(v.get("suggested_price", 0) or 0),
+                "stock": v.get("stock", 0),
+                "sku": v.get("sku", ""),
+            })
+
+        return {
+            "id": p.get("id"),
+            "name": p.get("name", ""),
+            "type": p.get("type", "SIMPLE"),
+            "price": float(p.get("sale_price", 0) or 0),
+            "suggested_price": float(p.get("suggested_price", 0) or 0),
+            "currency": "COP",
+            "category": category_name,
+            "stock": total_stock,
+            "image_url": image_url,
+            "supplier": supplier_name,
+            "sku": p.get("sku", ""),
+            "variations": normalized_variations,
+        }
 
 
 dropi_client = DropisClient()

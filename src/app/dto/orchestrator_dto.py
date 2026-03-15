@@ -1,0 +1,24 @@
+"""
+DTOs para el orquestador.
+"""
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class OrchestratorRequest(BaseModel):
+    user_input: str = Field(min_length=1, max_length=10000)
+    context: Optional[dict] = None
+
+
+class OrchestratorResponse(BaseModel):
+    content: str
+    selected_agent: Optional[str] = None
+    router_reasoning: Optional[str] = None
+    model: Optional[str] = None
+    tokens_used: Optional[int] = None
+    scraped_sources: Optional[dict] = None
+    dropi_data: Optional[dict] = None
+    error: Optional[str] = None

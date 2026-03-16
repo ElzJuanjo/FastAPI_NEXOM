@@ -29,3 +29,7 @@ class UserRepository(ABC):
     @abstractmethod
     async def create_auth_provider(self, auth_provider: UserAuthProvider) -> UserAuthProvider:
         ...
+
+    @abstractmethod
+    async def add_auth_provider(self, provider: "UserAuthProvider") -> "UserAuthProvider":
+        ...

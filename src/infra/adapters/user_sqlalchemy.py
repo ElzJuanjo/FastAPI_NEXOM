@@ -52,3 +52,8 @@ class UserSQLAlchemyRepository(UserRepository):
         self._session.add(auth_provider)
         await self._session.flush()
         return auth_provider
+    
+    async def add_auth_provider(self, provider) -> object:
+        self._session.add(provider)
+        await self._session.flush()
+        return provider

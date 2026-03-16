@@ -1,6 +1,7 @@
 """
 Caso de uso: Ejecutar un agente.
 Registra la ejecución como AgentTask con input, output, tokens y costo.
+Valida cuota de la organización antes de ejecutar.
 """
 
 from datetime import datetime, timezone
@@ -25,6 +26,33 @@ class AgentDisabledError(Exception):
     pass
 
 
+class OrganizationQuotaExceededError(Exception):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Precios reales de OpenRouter por modelo (USD por 1M tokens)
+# ---------------------------------------------------------------------------
+
+MODEL_PRICING = {
+    # OpenAI
+    "openai/gpt-4.1": {"input": 2.00, "output": 8.00},
+    "openai/gpt-4.1-mini": {"input": 0.40, "output": 1.60},
+    "openai/gpt-4o": {"input": 2.50, "output": 10.00},
+    "openai/gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    # Anthropic
+    "anthropic/claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
+    "anthropic/claude-4.6-sonnet-20260217": {"input": 3.00, "output": 15.00},
+    # Google
+    "google/gemini-3.1-flash-image-preview": {"input": 0.50, "output": 3.00},
+    "google/gemini-3.1-flash-image-preview-20260226": {"input": 0.50, "output": 3.00},
+    "google/gemini-2.5-flash-image-preview": {"input": 0.30, "output": 2.50},
+}
+
+# Fallback si el modelo no está en la tabla
+DEFAULT_PRICING = {"input": 1.00, "output": 5.00}
+
+
 class AgentExecute:
 
     def __init__(
@@ -40,6 +68,8 @@ class AgentExecute:
         agent_config_id: str,
         user_input: str,
         context: dict | None = None,
+        organization=None,
+        plan=None,
     ) -> AgentTask:
         # 1. Obtener config del agente
         config = await self._config_repo.get_by_id(agent_config_id)
@@ -49,12 +79,20 @@ class AgentExecute:
         if not config.is_enabled:
             raise AgentDisabledError(f"El agente '{config.agent_type}' está deshabilitado")
 
-        # 2. Obtener instancia del agente
+        # 2. Validar cuota de la organización
+        if organization and plan:
+            if organization.tasks_used_this_month >= plan.max_tasks_per_month:
+                raise OrganizationQuotaExceededError(
+                    f"Cuota mensual agotada: {organization.tasks_used_this_month}/{plan.max_tasks_per_month} tasks. "
+                    f"Actualiza tu plan para continuar."
+                )
+
+        # 3. Obtener instancia del agente
         agent = get_agent(config.agent_type)
         if not agent:
             raise AgentNotAvailableError(f"Agente '{config.agent_type}' no disponible en el sistema")
 
-        # 3. Crear task en estado IN_PROGRESS
+        # 4. Crear task en estado IN_PROGRESS
         started_at = datetime.now(timezone.utc)
         task = AgentTask(
             agent_config_id=agent_config_id,
@@ -64,9 +102,8 @@ class AgentExecute:
         )
         task = await self._task_repo.create(task)
 
-        # 4. Ejecutar el agente
+        # 5. Ejecutar el agente
         try:
-            # Usar model_version del config, mapeado al formato OpenRouter
             model = self._resolve_model(config.ai_provider, config.model_version)
             temperature = (config.config_params or {}).get("temperature", 0.7)
             max_tokens = (config.config_params or {}).get("max_tokens", 2048)
@@ -79,27 +116,36 @@ class AgentExecute:
                 max_tokens=max_tokens,
             )
 
-            # 5. Actualizar task con resultado exitoso
+            # 6. Calcular costo real
             finished_at = datetime.now(timezone.utc)
+            tokens_input = result.get("tokens_prompt", 0)
+            tokens_output = result.get("tokens_completion", 0)
+            tokens_total = result.get("tokens_total", tokens_input + tokens_output)
+            cost = self._calculate_cost(tokens_input, tokens_output, model)
+
             task.status = StepStatus.COMPLETED
             task.output_payload = {
                 "content": result["content"],
                 "model": result["model"],
-                "finish_reason": result["finish_reason"],
+                "finish_reason": result.get("finish_reason"),
                 "scraped_sources": result.get("scraped_sources"),
                 "dropi_data": result.get("dropi_data"),
                 "images": result.get("images"),
                 "image_count": result.get("image_count"),
                 "generation_params": result.get("generation_params"),
             }
-            task.tokens_used = result["tokens_total"]
-            task.cost_usd = self._estimate_cost(result["tokens_total"], model)
+            task.tokens_used = tokens_total
+            task.cost_usd = cost
             task.finished_at = finished_at
             task.duration_ms = int((finished_at - started_at).total_seconds() * 1000)
 
-            # Actualizar contadores del config
+            # Actualizar contadores
             config.tasks_completed += 1
             config.tasks_total += 1
+
+            # Incrementar uso de la organización
+            if organization:
+                organization.tasks_used_this_month += 1
 
         except OpenRouterError as e:
             task.status = StepStatus.ERROR
@@ -126,25 +172,26 @@ class AgentExecute:
             "google": "google",
         }
         prefix = provider_map.get(ai_provider, ai_provider)
-
-        # Si ya viene con prefijo, retornarlo tal cual
         if "/" in model_version:
             return model_version
-
         return f"{prefix}/{model_version}"
 
-    def _estimate_cost(self, total_tokens: int, model: str) -> float:
+    def _calculate_cost(self, tokens_input: int, tokens_output: int, model: str) -> float:
         """
-        Estimación básica de costo.
-        OpenRouter retorna el costo real en la respuesta, pero como fallback
-        estimamos basándonos en tokens.
+        Calcula el costo basado en los precios reales de OpenRouter.
+        Separa input y output tokens ya que tienen precios diferentes.
         """
-        # Costos aproximados por 1K tokens (simplificado)
-        cost_per_1k = {
-            "openai/gpt-4o": 0.005,
-            "openai/gpt-4o-mini": 0.00015,
-            "anthropic/claude-sonnet-4-20250514": 0.003,
-            "google/gemini-pro": 0.00025,
-        }
-        rate = cost_per_1k.get(model, 0.001)
-        return round((total_tokens / 1000) * rate, 6)
+        pricing = MODEL_PRICING.get(model, DEFAULT_PRICING)
+
+        cost_input = (tokens_input / 1_000_000) * pricing["input"]
+        cost_output = (tokens_output / 1_000_000) * pricing["output"]
+
+        total = cost_input + cost_output
+
+        # Si no tenemos el desglose, estimar con el total
+        if tokens_input == 0 and tokens_output == 0:
+            total_tokens = tokens_input + tokens_output
+            avg_rate = (pricing["input"] + pricing["output"]) / 2
+            total = (total_tokens / 1_000_000) * avg_rate
+
+        return round(total, 6)

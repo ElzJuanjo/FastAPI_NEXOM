@@ -18,6 +18,8 @@ from interfaces.dependencies.auth_dependencies import (
     get_current_user_id, get_user_repository,
 )
 from domain.repositories.user_repository import UserRepository
+from infra.tools.google_oauth_client import get_google_login_url, GoogleOAuthError
+from app.use_cases.auth_google import GoogleAuth, GoogleAuthError
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -94,3 +96,40 @@ async def me(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     return UserResponse.model_validate(user)
+
+
+@router.get("/google/login")
+async def google_login():
+    """Retorna la URL para iniciar el flujo de login con Google."""
+    from infra.config.database import settings
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth no configurado",
+        )
+    url = get_google_login_url()
+    return {"login_url": url}
+
+
+@router.get("/google/callback")
+async def google_callback(
+    code: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Callback de Google OAuth.
+    Recibe el authorization code, lo intercambia por tokens,
+    crea/loguea al usuario y retorna JWT de NexOS.
+    """
+    from infra.adapters.user_sqlalchemy import UserSQLAlchemyRepository
+
+    user_repo = UserSQLAlchemyRepository(session)
+    use_case = GoogleAuth(user_repo)
+
+    try:
+        result = await use_case.execute(code=code)
+    except GoogleAuthError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await session.commit()
+    return result

@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # Dropi
     DROPI_INTEGRATION_KEY: str = Field(default="", description="Token de integración de Dropi")
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = Field(default="", description="Google OAuth Client ID")
+    GOOGLE_CLIENT_SECRET: str = Field(default="", description="Google OAuth Client Secret")
+    GOOGLE_REDIRECT_URI: str = Field(default="http://localhost:8000/api/v1/auth/google/callback")
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

@@ -167,3 +167,10 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `interfaces/api/flow_template_router.py` | Endpoints para Flow Templates predefinidos.                     |
 | `app/agents/scoring.py`                  | Motor de scoring para productos ganadores.                      |
 | `app/agents/dropi_filters.py`            | Filtros de calidad para productos de Dropi.                     |
+
+### Sprint 13 - Google OAuth
+
+| Archivo                                | Propósito                       |
+| -------------------------------------- | -------------------------------- |
+| `infra/tools/google_oauth_client.py` | Cliente para Google OAuth 2.0.   |
+| `app/use_cases/auth_google.py`       | Autenticación con Google OAuth. |

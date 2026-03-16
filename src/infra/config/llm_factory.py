@@ -8,7 +8,7 @@ from infra.config.database import settings
 
 
 def get_chat_model(
-    model: str = "openai/gpt-4o",
+    model: str = "openai/gpt-4.1-mini",
     temperature: float = 0.7,
     max_tokens: int = 2048,
 ) -> ChatOpenAI:

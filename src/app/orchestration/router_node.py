@@ -58,7 +58,7 @@ async def router_node(state: OrchestratorState) -> dict:
     Analiza el input del usuario y decide qué agente debe responder.
     Retorna el estado actualizado con selected_agent.
     """
-    llm = get_chat_model(model="openai/gpt-4o-mini", temperature=0.1, max_tokens=200)
+    llm = get_chat_model(model="openai/gpt-4.1-mini", temperature=0.1, max_tokens=200)
 
     messages = [
         SystemMessage(content=ROUTER_SYSTEM_PROMPT),

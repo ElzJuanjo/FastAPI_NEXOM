@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = Field(default="", description="Google OAuth Client ID")
     GOOGLE_CLIENT_SECRET: str = Field(default="", description="Google OAuth Client Secret")
     GOOGLE_REDIRECT_URI: str = Field(default="http://localhost:8000/api/v1/auth/google/callback")
+    
+    # Redis
+    REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

@@ -16,13 +16,15 @@ from interfaces.dependencies.brand_dependencies import (
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
+from interfaces.dependencies.org_membership import verify_org_membership
+
 router = APIRouter(prefix="/brands", tags=["Brands"])
 
 
 @router.post("", response_model=BrandResponse, status_code=status.HTTP_201_CREATED)
 async def create_brand(
     body: CreateBrandRequest,
-    org_id: str = Query(..., description="Organization ID"),
+    org_id: str = Depends(verify_org_membership),
     user_id: str = Depends(get_current_user_id),
     use_case: BrandCreate = Depends(get_brand_create),
     session: AsyncSession = Depends(get_session),
@@ -42,7 +44,7 @@ async def create_brand(
 
 @router.get("", response_model=BrandListResponse)
 async def list_brands(
-    org_id: str = Query(..., description="Organization ID"),
+    org_id: str = Depends(verify_org_membership),
     user_id: str = Depends(get_current_user_id),
     use_case: BrandList = Depends(get_brand_list),
 ):

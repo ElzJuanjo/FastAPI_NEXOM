@@ -21,13 +21,13 @@ from .base import Base, UUIDPk, TimestampMixin, UserRole, BillingStatus
 class Organization(UUIDPk, TimestampMixin, Base):
     __tablename__ = "organizations"
 
-    name:                  Mapped[str]           = mapped_column(String(255), nullable=False)
-    slug:                  Mapped[str]           = mapped_column(String(100), unique=True, nullable=False)
-    logo_url:              Mapped[Optional[str]] = mapped_column(String(512))
-    plan_id:               Mapped[str]           = mapped_column(UUID(as_uuid=False), ForeignKey("plans.id"), nullable=False)
-    timezone:              Mapped[str]           = mapped_column(String(100), default="UTC", nullable=False)
-    tasks_used_this_month: Mapped[int]           = mapped_column(Integer, default=0, nullable=False)
-    billing_reset_at:      Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    name:                    Mapped[str]           = mapped_column(String(255), nullable=False)
+    slug:                    Mapped[str]           = mapped_column(String(100), unique=True, nullable=False)
+    logo_url:                Mapped[Optional[str]] = mapped_column(String(512))
+    plan_id:                 Mapped[str]           = mapped_column(UUID(as_uuid=False), ForeignKey("plans.id"), nullable=False)
+    timezone:                Mapped[str]           = mapped_column(String(100), default="UTC", nullable=False)
+    credits_used_this_month: Mapped[int]           = mapped_column(Integer, default=0, nullable=False)
+    billing_reset_at:        Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     plan:          Mapped["Plan"]                     = relationship(back_populates="organizations")
     subscription:  Mapped[Optional["Subscription"]]   = relationship(back_populates="organization", uselist=False)

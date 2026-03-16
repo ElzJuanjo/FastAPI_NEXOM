@@ -174,3 +174,15 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | -------------------------------------- | -------------------------------- |
 | `infra/tools/google_oauth_client.py` | Cliente para Google OAuth 2.0.   |
 | `app/use_cases/auth_google.py`       | Autenticación con Google OAuth. |
+
+### Sprint 14 - Hardening
+
+| Archivo                                       | Propósito                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `infra/config/redis.py`                     | Cliente Redis compartido para rate limiting, caché y sesiones.          |
+| `infra/config/logging.py`                   | Configuración de logging estructurado con structlog.                    |
+| `infra/middleware/rate_limiter.py`          | Limita requests por IP y por usuario autenticado.                        |
+| `infra/middleware/error_handler.py`         | Captura excepciones no manejadas y retorna respuestas JSON consistentes. |
+| `infra/middleware/request_context.py`       | Middleware que asigna un request_id único a cada request                |
+| `interfaces/dependencies/org_membership.py` | Valida que el usuario autenticado pertenece a la organización.          |
+| `app/agents/credit_costs.py`                | Tabla de costos en créditos por tipo de agente.                         |

@@ -1,8 +1,8 @@
-"""add all models
+"""add tables
 
-Revision ID: 96af9cfed03e
+Revision ID: 44c19bfa7c05
 Revises: 
-Create Date: 2026-03-13 22:17:46.237316
+Create Date: 2026-03-15 21:30:31.491823
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '96af9cfed03e'
+revision: str = '44c19bfa7c05'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,7 +24,7 @@ def upgrade() -> None:
     op.create_table('plans',
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('plan_type', sa.Enum('FREE', 'PRO', 'ENTERPRISE', name='plantype'), nullable=False),
-    sa.Column('max_tasks_per_month', sa.Integer(), nullable=False),
+    sa.Column('max_credits_per_month', sa.Integer(), nullable=False),
     sa.Column('max_agents', sa.Integer(), nullable=False),
     sa.Column('has_api_access', sa.Boolean(), nullable=False),
     sa.Column('price_monthly_usd', sa.Numeric(precision=10, scale=2), nullable=False),
@@ -59,7 +59,7 @@ def upgrade() -> None:
     sa.Column('logo_url', sa.String(length=512), nullable=True),
     sa.Column('plan_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('timezone', sa.String(length=100), nullable=False),
-    sa.Column('tasks_used_this_month', sa.Integer(), nullable=False),
+    sa.Column('credits_used_this_month', sa.Integer(), nullable=False),
     sa.Column('billing_reset_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

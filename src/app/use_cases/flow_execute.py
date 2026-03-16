@@ -14,6 +14,7 @@ from domain.repositories.agent_config_repository import AgentConfigRepository
 from domain.entities.agent import AgentTask
 from app.orchestration.flow_state import FlowExecutionState
 from app.orchestration.flow_executor import execute_flow
+from app.agents.credit_costs import get_credit_cost, estimate_flow_credits
 
 
 class FlowNotFoundError(Exception):
@@ -21,6 +22,10 @@ class FlowNotFoundError(Exception):
 
 
 class FlowAlreadyRunningError(Exception):
+    pass
+
+
+class FlowQuotaExceededError(Exception):
     pass
 
 
@@ -34,7 +39,7 @@ class FlowExecute:
         self._flow_repo = flow_repo
         self._task_repo = task_repo
 
-    async def execute(self, flow_id: str, context: dict | None = None) -> dict:
+    async def execute(self, flow_id: str, context: dict | None = None, organization=None, plan=None) -> dict:
         """
         Ejecuta un Flow: lee steps de la BD, corre agentes, persiste resultados.
         """
@@ -46,6 +51,18 @@ class FlowExecute:
         if flow.status == FlowStatus.RUNNING:
             raise FlowAlreadyRunningError(f"Flow {flow_id} ya está en ejecución")
 
+        # 1.5 Validar cuota de créditos para todo el flow
+        if organization and plan:
+            agent_types = [step.agent_type for step in flow.steps]
+            total_credits_needed = estimate_flow_credits(agent_types)
+            remaining = plan.max_credits_per_month - organization.credits_used_this_month
+
+            if remaining < total_credits_needed:
+                raise FlowQuotaExceededError(
+                    f"Créditos insuficientes para este flow: necesitas {total_credits_needed} créditos, "
+                    f"te quedan {remaining}/{plan.max_credits_per_month}."
+                )
+                
         # 2. Marcar Flow como RUNNING
         flow.status = FlowStatus.RUNNING
         flow.started_at = datetime.now(timezone.utc)
@@ -123,6 +140,17 @@ class FlowExecute:
         flow.completed_at = datetime.now(timezone.utc)
         flow.progress_pct = 100.0
         await self._flow_repo.update(flow)
+        
+        # 7.5 Cobrar créditos por los steps completados exitosamente
+        total_credits_consumed = 0
+        if organization:
+            for step in flow.steps:
+                output = final_state["step_outputs"].get(step.id)
+                if output and output["status"] == "completed":
+                    credits = get_credit_cost(step.agent_type)
+                    total_credits_consumed += credits
+
+            organization.credits_used_this_month += total_credits_consumed
 
         # 8. Construir respuesta
         return {
@@ -132,6 +160,8 @@ class FlowExecute:
             "completed_steps": len(final_state["completed_step_ids"]),
             "total_tokens": total_tokens,
             "total_duration_ms": total_duration,
+            "credits_consumed": total_credits_consumed,
+            "credits_remaining": max(0, plan.max_credits_per_month - organization.credits_used_this_month) if plan else None,
             "step_results": {
                 sid: {
                     "agent_type": out.get("agent_type"),

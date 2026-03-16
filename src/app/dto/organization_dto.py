@@ -16,7 +16,7 @@ class PlanResponse(BaseModel):
     id: str
     name: str
     plan_type: str
-    max_tasks_per_month: int
+    max_credits_per_month: int
     max_agents: int
     has_api_access: bool
     price_monthly_usd: float
@@ -41,7 +41,7 @@ class OrganizationResponse(BaseModel):
     slug: str
     logo_url: Optional[str] = None
     timezone: str
-    tasks_used_this_month: int
+    credits_used_this_month: int
     plan: PlanResponse
     created_at: datetime
 

@@ -11,7 +11,7 @@ SEED_PLANS = [
     {
         "name": "Free",
         "plan_type": PlanType.FREE,
-        "max_tasks_per_month": 50,
+        "max_credits_per_month": 200,
         "max_agents": 3,
         "has_api_access": False,
         "price_monthly_usd": 0.00,
@@ -20,20 +20,20 @@ SEED_PLANS = [
     {
         "name": "Pro",
         "plan_type": PlanType.PRO,
-        "max_tasks_per_month": 500,
+        "max_credits_per_month": 5000,
         "max_agents": 10,
         "has_api_access": True,
-        "price_monthly_usd": 49.00,
-        "price_yearly_usd": 468.00,
+        "price_monthly_usd": 29.00,
+        "price_yearly_usd": 290.00,
     },
     {
         "name": "Enterprise",
         "plan_type": PlanType.ENTERPRISE,
-        "max_tasks_per_month": 99999,
+        "max_credits_per_month": 20000,
         "max_agents": 99,
         "has_api_access": True,
-        "price_monthly_usd": 199.00,
-        "price_yearly_usd": 1908.00,
+        "price_monthly_usd": 99.00,
+        "price_yearly_usd": 990.00,
     },
 ]
 

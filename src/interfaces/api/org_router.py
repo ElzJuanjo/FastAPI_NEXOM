@@ -19,6 +19,9 @@ from interfaces.dependencies.org_dependencies import (
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 from domain.repositories.plan_repository import PlanRepository
 
+from app.agents.credit_costs import CREDIT_COSTS, estimate_flow_credits
+from interfaces.dependencies.org_membership import verify_org_membership_path
+
 router = APIRouter(prefix="/organizations", tags=["Organizations"])
 
 
@@ -83,3 +86,54 @@ async def seed_plans(
     created = await use_case.execute()
     await session.commit()
     return [PlanResponse.model_validate(p) for p in created]
+
+
+@router.get("/{org_id}/usage")
+async def get_org_usage(
+    org_id: str = Depends(verify_org_membership_path),
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna el consumo de créditos de la organización."""
+    from domain.entities.organization import Organization
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    stmt = (
+        select(Organization)
+        .options(selectinload(Organization.plan))
+        .where(Organization.id == org_id)
+    )
+    result = await session.execute(stmt)
+    org = result.scalar_one_or_none()
+
+    if not org:
+        raise HTTPException(status_code=404, detail="Organización no encontrada")
+
+    plan = org.plan
+    used = org.credits_used_this_month
+    total = plan.max_credits_per_month
+    remaining = max(0, total - used)
+    pct_used = round((used / total) * 100, 1) if total > 0 else 0
+
+    return {
+        "organization_id": org_id,
+        "plan": plan.name,
+        "credits": {
+            "used": used,
+            "total": total,
+            "remaining": remaining,
+            "percentage_used": pct_used,
+        },
+        "cost_table": CREDIT_COSTS,
+        "examples": {
+            "full_cycle_cost": estimate_flow_credits([
+                "product_search", "dropi_connector", "branding",
+                "copywriting", "image_gen", "ads",
+                "landing_page", "store_dev", "conversion_opt",
+            ]),
+            "branding_launch_cost": estimate_flow_credits([
+                "branding", "copywriting", "image_gen", "landing_page",
+            ]),
+        },
+    }

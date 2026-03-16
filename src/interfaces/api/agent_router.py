@@ -24,6 +24,8 @@ from interfaces.dependencies.agent_dependencies import (
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
+from interfaces.dependencies.org_membership import verify_org_membership
+
 
 # ===========================================================================
 # Agent Configs
@@ -35,7 +37,7 @@ config_router = APIRouter(prefix="/agent-configs", tags=["Agent Configs"])
 @config_router.post("", response_model=AgentConfigResponse, status_code=status.HTTP_201_CREATED)
 async def create_agent_config(
     body: CreateAgentConfigRequest,
-    org_id: str = Query(..., description="Organization ID"),
+    org_id: str = Depends(verify_org_membership),
     user_id: str = Depends(get_current_user_id),
     use_case: AgentConfigCreate = Depends(get_agent_config_create),
     session: AsyncSession = Depends(get_session),
@@ -58,7 +60,7 @@ async def create_agent_config(
 
 @config_router.get("", response_model=AgentConfigListResponse)
 async def list_agent_configs(
-    org_id: str = Query(..., description="Organization ID"),
+    org_id: str = Depends(verify_org_membership),
     user_id: str = Depends(get_current_user_id),
     use_case: AgentConfigList = Depends(get_agent_config_list),
 ):

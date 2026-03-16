@@ -6,6 +6,8 @@ from app.use_cases.landing_page_crud import *
 from interfaces.dependencies.landing_page_dependencies import *
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
+from interfaces.dependencies.org_membership import verify_brand_access
+
 router = APIRouter(prefix="/landing-pages", tags=["Landing Pages"])
 
 
@@ -28,7 +30,7 @@ async def create_landing_page(
 
 @router.get("", response_model=LandingPageListResponse)
 async def list_landing_pages(
-    brand_id: str = Query(...),
+    brand_id: str = Depends(verify_brand_access),
     user_id: str = Depends(get_current_user_id),
     use_case: LandingPageList = Depends(get_lp_list),
 ):

@@ -19,11 +19,16 @@ from interfaces.dependencies.auth_dependencies import get_current_user_id
 from domain.entities.agent import AgentConfig
 from domain.entities.organization import Organization
 
+from infra.middleware.rate_limiter import limiter
+from starlette.requests import Request
+
 router = APIRouter(prefix="/agents", tags=["Agent Execution"])
 
 
 @router.post("/execute", response_model=ExecuteAgentResponse)
+@limiter.limit("10/minute")
 async def execute_agent(
+    request: Request,
     body: ExecuteAgentRequest,
     user_id: str = Depends(get_current_user_id),
     use_case: AgentExecute = Depends(get_agent_execute),

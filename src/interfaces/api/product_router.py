@@ -16,13 +16,15 @@ from interfaces.dependencies.product_dependencies import (
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
+from interfaces.dependencies.org_membership import verify_org_membership
+
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def create_product(
     body: CreateProductRequest,
-    org_id: str = Query(..., description="Organization ID"),
+    org_id: str = Depends(verify_org_membership),
     user_id: str = Depends(get_current_user_id),
     use_case: ProductCreate = Depends(get_product_create),
     session: AsyncSession = Depends(get_session),
@@ -37,7 +39,7 @@ async def create_product(
 
 @router.get("", response_model=ProductListResponse)
 async def list_products(
-    org_id: str = Query(..., description="Organization ID"),
+    org_id: str = Depends(verify_org_membership),
     user_id: str = Depends(get_current_user_id),
     use_case: ProductList = Depends(get_product_list),
 ):

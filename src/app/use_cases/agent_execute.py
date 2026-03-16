@@ -11,6 +11,7 @@ from domain.entities.base import StepStatus
 from domain.repositories.agent_config_repository import AgentConfigRepository
 from domain.repositories.agent_task_repository import AgentTaskRepository
 from app.agents.agent_registry import get_agent
+from app.agents.credit_costs import get_credit_cost
 from infra.tools.openrouter_client import OpenRouterError
 
 
@@ -81,9 +82,12 @@ class AgentExecute:
 
         # 2. Validar cuota de la organización
         if organization and plan:
-            if organization.tasks_used_this_month >= plan.max_tasks_per_month:
+            credit_cost = get_credit_cost(config.agent_type)
+            if organization.credits_used_this_month + credit_cost > plan.max_credits_per_month:
+                remaining = plan.max_credits_per_month - organization.credits_used_this_month
                 raise OrganizationQuotaExceededError(
-                    f"Cuota mensual agotada: {organization.tasks_used_this_month}/{plan.max_tasks_per_month} tasks. "
+                    f"Créditos insuficientes: necesitas {credit_cost} créditos, "
+                    f"te quedan {remaining}/{plan.max_credits_per_month}. "
                     f"Actualiza tu plan para continuar."
                 )
 
@@ -143,9 +147,9 @@ class AgentExecute:
             config.tasks_completed += 1
             config.tasks_total += 1
 
-            # Incrementar uso de la organización
+            # Incrementar uso de créditos de la organización
             if organization:
-                organization.tasks_used_this_month += 1
+                organization.credits_used_this_month += get_credit_cost(config.agent_type)
 
         except OpenRouterError as e:
             task.status = StepStatus.ERROR

@@ -3,6 +3,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from infra.config.logging import setup_logging
+from infra.middleware.request_context import RequestContextMiddleware
+from infra.middleware.error_handler import (
+    NexOSError, nexos_error_handler,
+    http_exception_handler, unhandled_exception_handler,
+)
+from infra.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 from infra.config.database import settings, engine
 from domain.entities import Base
 from interfaces.api.auth_router import router as auth_router
@@ -27,11 +38,24 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
+setup_logging()
 
 app = FastAPI(
     title=settings.APP_NAME,
     lifespan=lifespan,
 )
+
+# Rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Error handlers (orden importa: más específico primero)
+app.add_exception_handler(NexOSError, nexos_error_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
+# Request context middleware (request_id + logging)
+app.add_middleware(RequestContextMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

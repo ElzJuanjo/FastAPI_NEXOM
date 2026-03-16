@@ -21,11 +21,16 @@ from domain.repositories.user_repository import UserRepository
 from infra.tools.google_oauth_client import get_google_login_url, GoogleOAuthError
 from app.use_cases.auth_google import GoogleAuth, GoogleAuthError
 
+from infra.middleware.rate_limiter import limiter
+from starlette.requests import Request
+
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register(
+    request: Request,
     body: RegisterRequest,
     use_case: AuthRegister = Depends(get_auth_register),
     session: AsyncSession = Depends(get_session),
@@ -51,7 +56,9 @@ async def register(
 
 
 @router.post("/login", response_model=AuthResponse)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     use_case: AuthLogin = Depends(get_auth_login),
 ):

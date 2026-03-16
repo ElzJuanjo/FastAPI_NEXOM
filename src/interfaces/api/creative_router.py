@@ -11,6 +11,8 @@ from interfaces.dependencies.creative_dependencies import (
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
+from interfaces.dependencies.org_membership import verify_product_access
+
 router = APIRouter(prefix="/creatives", tags=["Creatives"])
 
 
@@ -28,7 +30,7 @@ async def create_creative(
 
 @router.get("", response_model=CreativeListResponse)
 async def list_creatives(
-    product_id: str = Query(...),
+    product_id: str = Depends(verify_product_access),
     user_id: str = Depends(get_current_user_id),
     use_case: CreativeList = Depends(get_creative_list),
 ):

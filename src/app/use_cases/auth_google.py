@@ -18,6 +18,8 @@ from infra.tools.google_oauth_client import (
     get_google_user_info,
     GoogleOAuthError,
 )
+from fastapi.responses import RedirectResponse
+from infra.config.database import settings
 
 
 class GoogleAuthError(Exception):
@@ -150,16 +152,6 @@ class GoogleAuth:
         nexos_access_token = create_access_token(subject=user.id)
         nexos_refresh_token = create_refresh_token(subject=user.id)
 
-        return {
-            "access_token": nexos_access_token,
-            "refresh_token": nexos_refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "full_name": user.full_name,
-                "avatar_url": user.avatar_url,
-                "is_verified": user.is_verified,
-            },
-            "is_new_user": is_new_user,
-        }
+        redirect_url = f"{settings.FRONTEND_URL}/auth/callback?access_token={nexos_access_token}&refresh_token={nexos_refresh_token}"
+        
+        return RedirectResponse(url=redirect_url)

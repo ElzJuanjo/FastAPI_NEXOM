@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
+    
+    # Frontend
+    FRONTEND_URL: str = Field(default="", description="Frontend URL for CORS")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

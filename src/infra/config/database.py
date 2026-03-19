@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
     
+    # S3
+    AWS_ACCESS_KEY_ID: str = Field(default="")
+    AWS_SECRET_ACCESS_KEY: str = Field(default="")
+    AWS_REGION: str = Field(default="")
+    S3_BUCKET_NAME: str = Field(default="")
+    S3_BUCKET_URL: str = Field(default="") 
+    
     # Frontend
     FRONTEND_URL: str = Field(default="", description="Frontend URL for CORS")
 

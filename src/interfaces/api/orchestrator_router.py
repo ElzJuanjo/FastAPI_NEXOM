@@ -19,6 +19,9 @@ from interfaces.dependencies.auth_dependencies import get_current_user_id
 from interfaces.dependencies.org_membership import get_current_org
 from domain.entities.organization import Organization
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/orchestrator", tags=["Orchestrator"])
 
 
@@ -62,8 +65,39 @@ async def orchestrate(
     result["credits_consumed"] = total_credits
     result["credits_remaining"] = max(0, plan.max_credits_per_month - organization.credits_used_this_month)
     await session.commit()
+    
+    # Registrar en agent_tasks para historial de actividad
+    from domain.entities.agent import AgentTask
+    from datetime import datetime, timezone
 
-    # Normalizar imágenes: pueden venir como strings o como dicts
+    try:
+        agent_task = AgentTask(
+            organization_id=str(organization.id),
+            agent_type=agent_type,
+            status="completed" if not result.get("error") else "error",
+            input_payload={
+                "user_input": body.user_input,
+                "context": body.context,
+                "force_agent": body.force_agent,
+            },
+            output_payload={
+                "content": result.get("content"),
+                "images": result.get("images"),
+                "image_count": result.get("image_count"),
+                "model": result.get("model"),
+            },
+            error_message=result.get("error"),
+            tokens_used=result.get("tokens_used"),
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            duration_ms=result.get("duration_ms"),
+        )
+        session.add(agent_task)
+        await session.commit()
+    except Exception as e:
+        logger.error(f"Error registering orchestrator task: {e}")
+
+    # Normalizar imágenes, subir a S3, y opcionalmente crear Creatives
     raw_images = result.get("images")
     if raw_images and isinstance(raw_images, list):
         normalized = []
@@ -74,6 +108,44 @@ async def orchestrate(
                 url = img.get("image_url", {}).get("url") or img.get("url", "")
                 if url:
                     normalized.append(url)
-        result["images"] = normalized
+
+        # Subir base64 a S3
+        from infra.tools.s3_client import upload_multiple_base64_images
+
+        base64_images = [img for img in normalized if img.startswith("data:") or len(img) > 500]
+
+        if base64_images:
+            try:
+                s3_results = await upload_multiple_base64_images(
+                    base64_images, org_id=str(organization.id)
+                )
+                s3_urls = [r["url"] for r in s3_results]
+                non_base64 = [img for img in normalized if not img.startswith("data:") and len(img) <= 500]
+                result["images"] = non_base64 + s3_urls
+
+                # Crear Creatives en BD (con o sin product_id)
+                product_id = (body.context or {}).get("product_id") or None
+                from app.use_cases.creative_persist import persist_creative
+                gen_params = result.get("generation_params") or {}
+                for s3_url in s3_urls:
+                    try:
+                        await persist_creative(
+                            session=session,
+                            base64_image=s3_url,
+                            org_id=str(organization.id),
+                            product_id=product_id,
+                            style=gen_params.get("style"),
+                            format=gen_params.get("aspect_ratio"),
+                            generation_prompt=gen_params.get("prompt"),
+                        )
+                    except Exception as e:
+                        logger.error(f"Error creating creative from orchestrator: {e}")
+                await session.commit()
+
+            except Exception as e:
+                logger.error(f"Error subiendo imágenes a S3: {e}")
+                result["images"] = normalized
+        else:
+            result["images"] = normalized
 
     return OrchestratorResponse(**result)

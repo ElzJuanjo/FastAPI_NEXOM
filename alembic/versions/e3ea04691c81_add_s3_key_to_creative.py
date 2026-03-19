@@ -1,8 +1,8 @@
-"""add 2fa fields to user
+"""add s3_key to creative
 
-Revision ID: 08f9b44103b3
+Revision ID: e3ea04691c81
 Revises: 
-Create Date: 2026-03-19 08:41:16.494136
+Create Date: 2026-03-19 14:20:40.861042
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '08f9b44103b3'
+revision: str = 'e3ea04691c81'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -318,25 +318,26 @@ def upgrade() -> None:
     op.create_index('ix_agent_tasks_org_id', 'agent_tasks', ['organization_id'], unique=False)
     op.create_index('ix_agent_tasks_status', 'agent_tasks', ['status'], unique=False)
     op.create_table('creatives',
-    sa.Column('product_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('product_id', sa.UUID(as_uuid=False), nullable=True),
+    sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('agent_type', sa.Enum('PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
-    sa.Column('platform', sa.Enum('META_ADS', 'GOOGLE_ADS', 'TIKTOK_ADS', 'INSTAGRAM', 'LANDING_PAGE', 'EMAIL_MARKETING', name='adplatform'), nullable=True),
-    sa.Column('format', sa.String(length=10), nullable=True, comment='1:1 | 16:9 | 4:5 | 9:16'),
-    sa.Column('style', sa.String(length=50), nullable=True, comment='minimalist | editorial | lifestyle | product_only'),
     sa.Column('status', sa.Enum('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', name='assetstatus'), nullable=False),
-    sa.Column('file_url', sa.String(length=512), nullable=True),
-    sa.Column('thumbnail_url', sa.String(length=512), nullable=True),
-    sa.Column('file_size_bytes', sa.BigInteger(), nullable=True),
-    sa.Column('width_px', sa.Integer(), nullable=True),
-    sa.Column('height_px', sa.Integer(), nullable=True),
-    sa.Column('duration_sec', sa.Float(), nullable=True),
     sa.Column('generation_prompt', sa.Text(), nullable=True),
-    sa.Column('generation_params', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('generation_params', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='angle, model, aspect_ratio, etc.'),
+    sa.Column('file_url', sa.String(length=512), nullable=True),
+    sa.Column('s3_key', sa.String(length=512), nullable=True, comment='S3 object key for deletion'),
+    sa.Column('file_size_bytes', sa.BigInteger(), nullable=True),
+    sa.Column('style', sa.String(length=50), nullable=True, comment='lifestyle | editorial | product_only | ugc_style | flat_lay'),
+    sa.Column('format', sa.String(length=10), nullable=True, comment='1:1 | 16:9 | 4:5 | 9:16'),
+    sa.Column('platform', sa.String(length=100), nullable=True, comment='Instagram/Facebook Feed, Stories, etc.'),
+    sa.Column('angle', sa.String(length=50), nullable=True, comment='transformation | pain | social_proof | curiosity | authority'),
+    sa.Column('thumbnail_url', sa.String(length=512), nullable=True),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['product_id'], ['products.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['product_id'], ['products.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_creatives_deleted_at'), 'creatives', ['deleted_at'], unique=False)

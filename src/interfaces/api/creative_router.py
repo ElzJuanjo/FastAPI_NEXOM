@@ -11,7 +11,7 @@ from interfaces.dependencies.creative_dependencies import (
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
-from interfaces.dependencies.org_membership import verify_product_access
+from interfaces.dependencies.org_membership import get_current_org_id
 
 router = APIRouter(prefix="/creatives", tags=["Creatives"])
 
@@ -30,11 +30,26 @@ async def create_creative(
 
 @router.get("", response_model=CreativeListResponse)
 async def list_creatives(
-    product_id: str = Depends(verify_product_access),
+    product_id: str | None = Query(default=None),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
-    use_case: CreativeList = Depends(get_creative_list),
+    session: AsyncSession = Depends(get_session),
 ):
-    creatives = await use_case.execute(product_id)
+    """Lista creativos de la organización, opcionalmente filtrados por producto."""
+    from domain.entities.creative import Creative
+    from sqlalchemy import select
+
+    stmt = (
+        select(Creative)
+        .where(Creative.organization_id == org_id)
+        .where(Creative.deleted_at.is_(None))
+    )
+    if product_id:
+        stmt = stmt.where(Creative.product_id == product_id)
+
+    stmt = stmt.order_by(Creative.created_at.desc())
+    result = await session.execute(stmt)
+    creatives = list(result.scalars().all())
     return CreativeListResponse(creatives=[CreativeResponse.model_validate(c) for c in creatives])
 
 
@@ -58,11 +73,77 @@ async def update_creative(
 async def delete_creative(
     creative_id: str,
     user_id: str = Depends(get_current_user_id),
-    use_case: CreativeDelete = Depends(get_creative_delete),
     session: AsyncSession = Depends(get_session),
 ):
-    try:
-        await use_case.execute(creative_id)
-    except CreativeNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    from domain.entities.creative import Creative
+    from sqlalchemy import select, delete as sql_delete
+    from infra.tools.s3_client import delete_s3_object
+
+    stmt = select(Creative).where(Creative.id == creative_id)
+    result = await session.execute(stmt)
+    creative = result.scalar_one_or_none()
+
+    if not creative:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creative no encontrado")
+
+    # Eliminar de S3
+    if creative.s3_key:
+        await delete_s3_object(creative.s3_key)
+    elif creative.file_url and "s3.amazonaws.com" in (creative.file_url or ""):
+        try:
+            key = creative.file_url.split(".amazonaws.com/", 1)[1]
+            await delete_s3_object(key)
+        except Exception:
+            pass
+
+    # Hard delete de BD
+    await session.delete(creative)
     await session.commit()
+    
+    
+@router.get("/unassigned")
+async def list_unassigned_creatives(
+    org_id: str = Depends(get_current_org_id),
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lista creativos sin producto asignado de esta organización."""
+    from domain.entities.creative import Creative
+    from sqlalchemy import select
+
+    stmt = (
+        select(Creative)
+        .where(Creative.organization_id == org_id)
+        .where(Creative.product_id.is_(None))
+        .where(Creative.deleted_at.is_(None))
+        .order_by(Creative.created_at.desc())
+    )
+    result = await session.execute(stmt)
+    creatives = list(result.scalars().all())
+    return CreativeListResponse(creatives=[CreativeResponse.model_validate(c) for c in creatives])
+
+@router.patch("/{creative_id}/assign", response_model=CreativeResponse)
+async def assign_product(
+    creative_id: str,
+    body: dict,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Asigna o desasigna un producto a un creativo."""
+    from domain.entities.creative import Creative
+    from sqlalchemy import select
+
+    stmt = select(Creative).where(Creative.id == creative_id, Creative.deleted_at.is_(None))
+    result = await session.execute(stmt)
+    creative = result.scalar_one_or_none()
+
+    if not creative:
+        raise HTTPException(status_code=404, detail="Creative no encontrado")
+
+    # Permitir null para desasignar
+    product_id = body.get("product_id")  # puede ser string o None
+    creative.product_id = product_id
+
+    await session.commit()
+    await session.refresh(creative)
+    return CreativeResponse.model_validate(creative)

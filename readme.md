@@ -187,3 +187,10 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `interfaces/api/creative_batch_router.py`   | Endpoints para generación masiva de creativos publicitarios.            |
 | `infra/tools/email_client.py`               | Cliente SMTP asíncrono para envío de emails transaccionales.           |
 | `app/use_cases/org_update.py`               | Actualizar organización y cambiar plan.                                 |
+
+### Sprint 15 - Persistencia de imágenes
+
+| Archivo                               | Propósito                                                             |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `infra/tools/s3_client.py`          | Cliente async para subir archivos a S3.                                |
+| `app/use_cases/creative_persist.py` | Utilidad para persistir imágenes generadas como Creatives en BD + S3. |

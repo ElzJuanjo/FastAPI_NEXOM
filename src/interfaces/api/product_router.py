@@ -70,12 +70,43 @@ async def update_product(
 async def delete_product(
     product_id: str,
     user_id: str = Depends(get_current_user_id),
-    use_case: ProductDelete = Depends(get_product_delete),
     session: AsyncSession = Depends(get_session),
 ):
-    try:
-        await use_case.execute(product_id)
-    except ProductNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    import logging
+    from domain.entities.product import Product
+    from domain.entities.creative import Creative
+    from sqlalchemy import select
+    from infra.tools.s3_client import delete_s3_object
 
+    logger = logging.getLogger(__name__)
+
+    # Verificar que existe
+    stmt = select(Product).where(Product.id == product_id)
+    result = await session.execute(stmt)
+    product = result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
+
+    # Eliminar creativos asociados (S3 + BD)
+    creative_stmt = select(Creative).where(Creative.product_id == product_id)
+    creative_result = await session.execute(creative_stmt)
+    creatives = list(creative_result.scalars().all())
+
+    for creative in creatives:
+        s3_key = creative.s3_key
+        if not s3_key and creative.file_url and ".amazonaws.com/" in creative.file_url:
+            try:
+                s3_key = creative.file_url.split(".amazonaws.com/", 1)[1]
+            except (IndexError, AttributeError):
+                pass
+        if s3_key:
+            await delete_s3_object(s3_key)
+        await session.delete(creative)
+
+    logger.info(f"Deleted {len(creatives)} creatives for product {product_id}")
+
+    # Hard delete producto
+    await session.delete(product)
     await session.commit()
+    logger.info(f"Product {product_id} hard deleted")

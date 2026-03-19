@@ -42,3 +42,23 @@ class CreativeSQLAlchemyRepository(CreativeRepository):
         if creative:
             creative.deleted_at = datetime.now(timezone.utc)
             await self._session.flush()
+            
+    async def list_by_org(self, org_id: str) -> list[Creative]:
+        """Lista creativos sin producto vinculado, filtrando por org vía S3 key o join."""
+        from domain.entities.product import Product
+        from sqlalchemy import select, or_
+
+        stmt = (
+            select(Creative)
+            .outerjoin(Product, Creative.product_id == Product.id)
+            .where(
+                or_(
+                    Product.organization_id == org_id,
+                    Creative.product_id.is_(None),
+                )
+            )
+            .where(Creative.deleted_at.is_(None))
+            .order_by(Creative.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())

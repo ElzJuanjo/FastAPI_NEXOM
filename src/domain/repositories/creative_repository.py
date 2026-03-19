@@ -24,3 +24,7 @@ class CreativeRepository(ABC):
     @abstractmethod
     async def soft_delete(self, creative_id: str) -> None:
         ...
+        
+    @abstractmethod
+    async def list_by_org(self, org_id: str) -> List["Creative"]:
+        ...

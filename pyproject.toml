@@ -5,6 +5,7 @@ description = "Desarrollo backend para proyecto de automatización de e-commerce
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aioboto3>=15.5.0",
     "aiosmtplib>=5.1.0",
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",

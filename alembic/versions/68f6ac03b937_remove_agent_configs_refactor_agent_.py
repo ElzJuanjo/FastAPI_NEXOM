@@ -1,8 +1,8 @@
-"""add tables
+"""remove_agent_configs_refactor_agent_tasks
 
-Revision ID: 44c19bfa7c05
+Revision ID: 68f6ac03b937
 Revises: 
-Create Date: 2026-03-15 21:30:31.491823
+Create Date: 2026-03-18 20:49:50.292350
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '44c19bfa7c05'
+revision: str = '68f6ac03b937'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -43,13 +43,17 @@ def upgrade() -> None:
     sa.Column('avatar_url', sa.String(length=512), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('is_verified', sa.Boolean(), nullable=False),
+    sa.Column('referral_code', sa.String(length=20), nullable=True),
+    sa.Column('referred_by_user_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('notif_prefs', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Keys: email_task_complete, email_flow_error, email_recommendation, in_app_task_complete, in_app_flow_error'),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['referred_by_user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('email')
+    sa.UniqueConstraint('email'),
+    sa.UniqueConstraint('referral_code')
     )
     op.create_index(op.f('ix_users_deleted_at'), 'users', ['deleted_at'], unique=False)
     op.create_index('ix_users_email_active', 'users', ['email', 'is_active'], unique=False)
@@ -108,24 +112,6 @@ def upgrade() -> None:
     )
     op.create_index('ix_activity_logs_entity', 'activity_logs', ['entity_type', 'entity_id'], unique=False)
     op.create_index('ix_activity_logs_org_created', 'activity_logs', ['organization_id', 'created_at'], unique=False)
-    op.create_table('agent_configs',
-    sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('agent_type', sa.Enum('PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
-    sa.Column('ai_provider', sa.Enum('OPENAI', 'ANTHROPIC', 'GOOGLE', name='aiprovider'), nullable=False),
-    sa.Column('model_version', sa.String(length=100), nullable=False),
-    sa.Column('is_enabled', sa.Boolean(), nullable=False),
-    sa.Column('tasks_completed', sa.Integer(), nullable=False),
-    sa.Column('tasks_total', sa.Integer(), nullable=False),
-    sa.Column('config_params', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('organization_id', 'agent_type', name='uq_org_agent')
-    )
-    op.create_index(op.f('ix_agent_configs_deleted_at'), 'agent_configs', ['deleted_at'], unique=False)
     op.create_table('brands',
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -304,7 +290,8 @@ def upgrade() -> None:
     op.create_index('ix_products_dropi_id', 'products', ['dropi_product_id'], unique=False)
     op.create_index('ix_products_org_id', 'products', ['organization_id'], unique=False)
     op.create_table('agent_tasks',
-    sa.Column('agent_config_id', sa.UUID(as_uuid=False), nullable=True),
+    sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('agent_type', sa.Enum('PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
     sa.Column('flow_step_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'ERROR', 'SKIPPED', name='stepstatus'), nullable=False),
     sa.Column('input_payload', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -319,13 +306,14 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['agent_config_id'], ['agent_configs.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['flow_step_id'], ['flow_steps.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_agent_tasks_config_id', 'agent_tasks', ['agent_config_id'], unique=False)
+    op.create_index('ix_agent_tasks_agent_type', 'agent_tasks', ['agent_type'], unique=False)
     op.create_index('ix_agent_tasks_created_at', 'agent_tasks', ['created_at'], unique=False)
     op.create_index(op.f('ix_agent_tasks_deleted_at'), 'agent_tasks', ['deleted_at'], unique=False)
+    op.create_index('ix_agent_tasks_org_id', 'agent_tasks', ['organization_id'], unique=False)
     op.create_index('ix_agent_tasks_status', 'agent_tasks', ['status'], unique=False)
     op.create_table('creatives',
     sa.Column('product_id', sa.UUID(as_uuid=False), nullable=False),
@@ -405,9 +393,10 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_creatives_deleted_at'), table_name='creatives')
     op.drop_table('creatives')
     op.drop_index('ix_agent_tasks_status', table_name='agent_tasks')
+    op.drop_index('ix_agent_tasks_org_id', table_name='agent_tasks')
     op.drop_index(op.f('ix_agent_tasks_deleted_at'), table_name='agent_tasks')
     op.drop_index('ix_agent_tasks_created_at', table_name='agent_tasks')
-    op.drop_index('ix_agent_tasks_config_id', table_name='agent_tasks')
+    op.drop_index('ix_agent_tasks_agent_type', table_name='agent_tasks')
     op.drop_table('agent_tasks')
     op.drop_index('ix_products_org_id', table_name='products')
     op.drop_index('ix_products_dropi_id', table_name='products')
@@ -437,8 +426,6 @@ def downgrade() -> None:
     op.drop_table('flows')
     op.drop_index(op.f('ix_brands_deleted_at'), table_name='brands')
     op.drop_table('brands')
-    op.drop_index(op.f('ix_agent_configs_deleted_at'), table_name='agent_configs')
-    op.drop_table('agent_configs')
     op.drop_index('ix_activity_logs_org_created', table_name='activity_logs')
     op.drop_index('ix_activity_logs_entity', table_name='activity_logs')
     op.drop_table('activity_logs')

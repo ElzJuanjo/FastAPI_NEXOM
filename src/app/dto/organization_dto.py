@@ -35,6 +35,17 @@ class CreateOrganizationRequest(BaseModel):
     timezone: str = Field(default="UTC", max_length=100)
 
 
+class UpdateOrganizationRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
+    slug: Optional[str] = Field(default=None, min_length=2, max_length=100, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    logo_url: Optional[str] = Field(default=None, max_length=512)
+    timezone: Optional[str] = Field(default=None, max_length=100)
+
+
+class ChangePlanRequest(BaseModel):
+    plan_type: str = Field(..., description="Tipo de plan: free, pro, enterprise")
+
+
 class OrganizationResponse(BaseModel):
     id: str
     name: str

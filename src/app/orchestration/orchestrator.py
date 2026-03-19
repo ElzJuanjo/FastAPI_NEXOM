@@ -34,14 +34,11 @@ def build_orchestrator() -> StateGraph:
     """
     graph = StateGraph(OrchestratorState)
 
-    # Agregar nodos
     graph.add_node("router", router_node)
     graph.add_node("executor", executor_node)
 
-    # Flujo: START → router
     graph.add_edge(START, "router")
 
-    # Condicional: router → executor o → END
     graph.add_conditional_edges(
         "router",
         should_execute,
@@ -51,7 +48,6 @@ def build_orchestrator() -> StateGraph:
         },
     )
 
-    # executor → END
     graph.add_edge("executor", END)
 
     return graph
@@ -64,6 +60,7 @@ orchestrator_graph = build_orchestrator().compile()
 async def run_orchestrator(
     user_input: str,
     context: dict | None = None,
+    force_agent: str | None = None,
 ) -> dict:
     """
     Ejecuta el orquestador completo.
@@ -71,10 +68,49 @@ async def run_orchestrator(
     Args:
         user_input: solicitud del usuario
         context: datos adicionales (market, brand_id, etc.)
+        force_agent: si se proporciona, salta el router y usa este agente directamente
 
     Returns:
         Dict con: content, selected_agent, reasoning, tokens, etc.
     """
+    # Si se fuerza un agente, saltar el router completamente
+    if force_agent:
+        from app.agents.agent_registry import get_agent, list_available_agents
+
+        if force_agent not in list_available_agents():
+            return {
+                "content": f"Agente '{force_agent}' no disponible. Disponibles: {', '.join(list_available_agents())}",
+                "selected_agent": None,
+                "router_reasoning": "Agente forzado no encontrado",
+                "model": None,
+                "tokens_used": 0,
+                "scraped_sources": None,
+                "dropi_data": None,
+                "images": None,
+                "image_count": None,
+                "error": f"Agente '{force_agent}' no existe",
+            }
+
+        agent = get_agent(force_agent)
+        result = await agent.execute(
+            user_input=user_input,
+            context=context or {},
+        )
+
+        return {
+            "content": result.get("content"),
+            "selected_agent": force_agent,
+            "router_reasoning": f"Agente forzado por el usuario: {force_agent}",
+            "model": result.get("model"),
+            "tokens_used": result.get("tokens_total", 0),
+            "scraped_sources": result.get("scraped_sources"),
+            "dropi_data": result.get("dropi_data"),
+            "images": result.get("images"),
+            "image_count": result.get("image_count"),
+            "error": None,
+        }
+
+    # Flujo normal: router decide el agente
     initial_state = {
         "messages": [],
         "user_input": user_input,
@@ -87,10 +123,8 @@ async def run_orchestrator(
         "completed": False,
     }
 
-    # Ejecutar el grafo
     final_state = await orchestrator_graph.ainvoke(initial_state)
 
-    # Construir respuesta
     agent_output = final_state.get("agent_output") or {}
     router_reasoning = final_state.get("context", {}).get("_router_reasoning", "")
 
@@ -102,5 +136,7 @@ async def run_orchestrator(
         "tokens_used": agent_output.get("tokens_total", 0),
         "scraped_sources": agent_output.get("scraped_sources"),
         "dropi_data": agent_output.get("dropi_data"),
+        "images": agent_output.get("images"),
+        "image_count": agent_output.get("image_count"),
         "error": final_state.get("error"),
     }

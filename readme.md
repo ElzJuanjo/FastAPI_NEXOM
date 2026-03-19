@@ -65,18 +65,15 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 ### Sprint 5 - Configuración de agentes y tareas
 
-| Archivo                                            | Propósito                                                  |
-| -------------------------------------------------- | ----------------------------------------------------------- |
-| `domain/entities/agent.py`                       | Entidades AgentConfig y AgentTask.                          |
-| `domain/repositories/agent_config_repository.py` | Contrato de acceso a datos para AgentConfig.                |
-| `domain/repositories/agent_task_repository.py`   | Contrato de acceso a datos para AgentTask.                  |
-| `infra/adapters/agent_config_sqlalchemy.py`      | Implementación SQLAlchemy async del AgentConfigRepository. |
-| `infra/adapters/agent_task_sqlalchemy.py`        | Implementación SQLAlchemy async del AgentTaskRepository.   |
-| `app/dto/agent_dto.py`                           | DTOs para AgentConfig y AgentTask.                          |
-| `app/use_cases/agent_config_crud.py`             | Casos de uso para AgentConfig.                              |
-| `app/use_cases/agent_task_crud.py`               | Casos de uso para AgentTask.                                |
-| `interfaces/dependencies/agent_dependencies.py`  | Dependencias de inyección para AgentConfig y AgentTask.    |
-| `interfaces/api/agent_router.py`                 | Endpoints de AgentConfig y AgentTask.                       |
+| Archivo                                           | Propósito                                                |
+| ------------------------------------------------- | --------------------------------------------------------- |
+| `domain/entities/agent.py`                      | Entidades AgentConfig y AgentTask.                        |
+| `domain/repositories/agent_task_repository.py`  | Contrato de acceso a datos para AgentTask.                |
+| `infra/adapters/agent_task_sqlalchemy.py`       | Implementación SQLAlchemy async del AgentTaskRepository. |
+| `app/dto/agent_dto.py`                          | DTOs para AgentConfig y AgentTask.                        |
+| `app/use_cases/agent_task_crud.py`              | Casos de uso para AgentTask.                              |
+| `interfaces/dependencies/agent_dependencies.py` | Dependencias de inyección para AgentConfig y AgentTask.  |
+| `interfaces/api/agent_router.py`                | Endpoints de AgentConfig y AgentTask.                     |
 
 ### Sprint 6 - Flujos y orquestación (Definición)
 
@@ -186,3 +183,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `infra/middleware/request_context.py`       | Middleware que asigna un request_id único a cada request                |
 | `interfaces/dependencies/org_membership.py` | Valida que el usuario autenticado pertenece a la organización.          |
 | `app/agents/credit_costs.py`                | Tabla de costos en créditos por tipo de agente.                         |
+| `app/use_cases/creative_batch.py`           | Generación masiva de creativos publicitarios.                           |
+| `interfaces/api/creative_batch_router.py`   | Endpoints para generación masiva de creativos publicitarios.            |
+| `infra/tools/email_client.py`               | Cliente SMTP asíncrono para envío de emails transaccionales.           |
+| `app/use_cases/org_update.py`               | Actualizar organización y cambiar plan.                                 |

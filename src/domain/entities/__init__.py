@@ -9,7 +9,7 @@ from .plan import Plan
 from .organization import Organization, Subscription, OrganizationMember
 from .brand import Brand
 from .product import Product
-from .agent import AgentConfig, AgentTask
+from .agent import AgentTask
 from .flow import Flow, FlowStep
 from .creative import Creative
 from .landing_page import LandingPage, LandingPageSection

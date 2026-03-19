@@ -33,3 +33,7 @@ class UserRepository(ABC):
     @abstractmethod
     async def add_auth_provider(self, provider: "UserAuthProvider") -> "UserAuthProvider":
         ...
+
+    @abstractmethod
+    async def get_by_referral_code(self, code: str) -> Optional["User"]:
+        ...

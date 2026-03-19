@@ -25,6 +25,9 @@ class User(UUIDPk, TimestampMixin, Base):
     avatar_url:  Mapped[Optional[str]] = mapped_column(String(512))
     is_active:   Mapped[bool]          = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool]          = mapped_column(Boolean, default=False, nullable=False)
+    
+    referral_code:       Mapped[Optional[str]] = mapped_column(String(20), unique=True, nullable=True)
+    referred_by_user_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=True)
 
     notif_prefs: Mapped[Optional[dict]] = mapped_column(
         JSONB,

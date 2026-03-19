@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+    JWT_VERIFICATION_TOKEN_EXPIRE_HOURS: int = Field(default=24)
     
     # OpenRouter
     OPENROUTER_API_KEY: str = Field(..., description="OpenRouter API key")
@@ -35,6 +36,15 @@ class Settings(BaseSettings):
     
     # Frontend
     FRONTEND_URL: str = Field(default="", description="Frontend URL for CORS")
+
+    # SMTP — Email de verificación
+    SMTP_HOST: str = Field(default="smtp.gmail.com", description="SMTP server host")
+    SMTP_PORT: int = Field(default=587, description="SMTP server port")
+    SMTP_USER: str = Field(default="", description="SMTP username / email")
+    SMTP_PASSWORD: str = Field(default="", description="SMTP password or app password")
+    SMTP_FROM_NAME: str = Field(default="NexOS", description="Display name in emails")
+    SMTP_FROM_EMAIL: str = Field(default="", description="Sender email address")
+    SMTP_USE_TLS: bool = Field(default=True, description="Use STARTTLS")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

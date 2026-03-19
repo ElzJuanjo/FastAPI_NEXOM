@@ -1,5 +1,5 @@
 """
-Endpoints CRUD de Product, scoped por organización.
+Endpoints CRUD de Product, scoped por organización del usuario.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,8 +15,7 @@ from interfaces.dependencies.product_dependencies import (
     get_product_create, get_product_list, get_product_update, get_product_delete,
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
-
-from interfaces.dependencies.org_membership import verify_org_membership
+from interfaces.dependencies.org_membership import get_current_org_id
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -24,7 +23,7 @@ router = APIRouter(prefix="/products", tags=["Products"])
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def create_product(
     body: CreateProductRequest,
-    org_id: str = Depends(verify_org_membership),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     use_case: ProductCreate = Depends(get_product_create),
     session: AsyncSession = Depends(get_session),
@@ -39,7 +38,7 @@ async def create_product(
 
 @router.get("", response_model=ProductListResponse)
 async def list_products(
-    org_id: str = Depends(verify_org_membership),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     use_case: ProductList = Depends(get_product_list),
 ):

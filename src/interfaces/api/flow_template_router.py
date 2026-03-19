@@ -2,9 +2,10 @@
 Endpoints para Flow Templates predefinidos.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from infra.config.database import get_session
 from infra.adapters.flow_sqlalchemy import FlowSQLAlchemyRepository
@@ -17,8 +18,8 @@ from app.dto.flow_execute_dto import ExecuteFlowResponse, StepResultSummary
 from app.use_cases.flow_template import FlowFromTemplate, FlowTemplateNotFoundError
 from app.use_cases.flow_execute import FlowExecute
 from interfaces.dependencies.auth_dependencies import get_current_user_id
-
-from interfaces.dependencies.org_membership import verify_org_membership
+from interfaces.dependencies.org_membership import get_current_org_id, get_current_org
+from domain.entities.organization import Organization
 
 router = APIRouter(prefix="/flow-templates", tags=["Flow Templates"])
 
@@ -39,7 +40,7 @@ async def list_templates(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_flow_from_template(
     body: CreateFlowFromTemplateRequest,
-    org_id: str = Depends(verify_org_membership),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_session),
 ):
@@ -68,38 +69,33 @@ async def create_flow_from_template(
     if not body.auto_execute:
         return FlowResponse.model_validate(flow)
 
-    # Auto-ejecutar
-    if body.auto_execute:
-        # Cargar org y plan
-        from domain.entities.organization import Organization
-        from sqlalchemy.orm import selectinload
+    # Auto-ejecutar: cargar org y plan
+    org_stmt = (
+        select(Organization)
+        .options(selectinload(Organization.plan))
+        .where(Organization.id == org_id)
+    )
+    org_result = await session.execute(org_stmt)
+    organization = org_result.scalar_one_or_none()
+    plan = organization.plan if organization else None
 
-        org_stmt = (
-            select(Organization)
-            .options(selectinload(Organization.plan))
-            .where(Organization.id == org_id)
+    task_repo = AgentTaskSQLAlchemyRepository(session)
+    executor = FlowExecute(flow_repo, task_repo)
+
+    try:
+        result = await executor.execute(
+            flow_id=flow.id,
+            context=body.context,
+            organization=organization,
+            plan=plan,
         )
-        org_result = await session.execute(org_stmt)
-        organization = org_result.scalar_one_or_none()
-        plan = organization.plan if organization else None
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Flow creado pero error en ejecución: {str(e)}",
+        )
 
-        task_repo = AgentTaskSQLAlchemyRepository(session)
-        executor = FlowExecute(flow_repo, task_repo)
-
-        try:
-            result = await executor.execute(
-                flow_id=flow.id,
-                context=body.context,
-                organization=organization,
-                plan=plan,
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Flow creado pero error en ejecución: {str(e)}",
-            )
-
-        await session.commit()
+    await session.commit()
 
     return ExecuteFlowResponse(
         flow_id=result["flow_id"],

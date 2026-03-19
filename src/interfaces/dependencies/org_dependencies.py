@@ -12,6 +12,7 @@ from domain.repositories.plan_repository import PlanRepository
 from domain.repositories.organization_repository import OrganizationRepository
 from app.use_cases.org_create import OrgCreate
 from app.use_cases.org_list import OrgList
+from app.use_cases.org_update import OrgUpdate, OrgChangePlan
 from app.use_cases.plan_seed import PlanSeed
 
 
@@ -40,6 +41,17 @@ def get_org_create(
 
 def get_org_list(org_repo: OrganizationRepository = Depends(get_org_repository)) -> OrgList:
     return OrgList(org_repo)
+
+
+def get_org_update(org_repo: OrganizationRepository = Depends(get_org_repository)) -> OrgUpdate:
+    return OrgUpdate(org_repo)
+
+
+def get_org_change_plan(
+    org_repo: OrganizationRepository = Depends(get_org_repository),
+    plan_repo: PlanRepository = Depends(get_plan_repository),
+) -> OrgChangePlan:
+    return OrgChangePlan(org_repo, plan_repo)
 
 
 def get_plan_seed(plan_repo: PlanRepository = Depends(get_plan_repository)) -> PlanSeed:

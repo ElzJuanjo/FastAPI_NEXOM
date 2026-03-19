@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 class OrchestratorRequest(BaseModel):
     user_input: str = Field(min_length=1, max_length=10000)
     context: Optional[dict] = None
-    org_id: Optional[str] = Field(default=None, description="Organization ID para validación de cuota")
+    force_agent: Optional[str] = Field(default=None, description="Forzar un agente específico: branding, copywriting, ads, etc. Si se omite, el router decide.")
 
 
 class OrchestratorResponse(BaseModel):
@@ -27,3 +27,4 @@ class OrchestratorResponse(BaseModel):
     error: Optional[str] = None
     credits_consumed: Optional[int] = None
     credits_remaining: Optional[int] = None
+    

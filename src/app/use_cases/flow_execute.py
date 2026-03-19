@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from domain.entities.base import FlowStatus, StepStatus
 from domain.repositories.flow_repository import FlowRepository
 from domain.repositories.agent_task_repository import AgentTaskRepository
-from domain.repositories.agent_config_repository import AgentConfigRepository
 from domain.entities.agent import AgentTask
 from app.orchestration.flow_state import FlowExecutionState
 from app.orchestration.flow_executor import execute_flow
@@ -119,6 +118,8 @@ class FlowExecute:
 
             # Crear AgentTask por cada step ejecutado
             task = AgentTask(
+                organization_id=flow.organization_id,
+                agent_type=step.agent_type,
                 status=StepStatus.COMPLETED if output["status"] == "completed" else StepStatus.ERROR,
                 flow_step_id=step.id,
                 input_payload={"step_name": step.name, "agent_type": step.agent_type},

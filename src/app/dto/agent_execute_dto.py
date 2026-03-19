@@ -9,13 +9,17 @@ from pydantic import BaseModel, Field
 
 
 class ExecuteAgentRequest(BaseModel):
-    agent_config_id: str
+    agent_type: str = Field(
+        ...,
+        description="Tipo de agente a ejecutar: product_search, dropi_connector, branding, copywriting, ads, landing_page, store_dev, image_gen, conversion_opt, general_assistant",
+    )
     user_input: str = Field(min_length=1, max_length=10000)
     context: Optional[dict] = None
 
 
 class ExecuteAgentResponse(BaseModel):
     task_id: str
+    agent_type: str
     status: str
     content: Optional[str] = None
     error_message: Optional[str] = None

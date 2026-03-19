@@ -1,16 +1,105 @@
 """
-Dependency que valida que el usuario autenticado pertenece a la organización.
-Usar en todos los endpoints que operan sobre recursos de una organización.
+Dependencies de organización.
+- get_current_org_id: resuelve la org del usuario autenticado (1:1).
+- verify_org_membership: valida que el usuario pertenece a una org (query/path).
+- verify_org_owner: valida que es owner de la org.
+- verify_product_access / verify_brand_access: valida acceso a recursos.
 """
 
 from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from infra.config.database import get_session
-from domain.entities.organization import OrganizationMember
+from domain.entities.organization import Organization, OrganizationMember
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
+
+# ---------------------------------------------------------------------------
+# NUEVA: Resolver org_id automáticamente desde el usuario autenticado
+# ---------------------------------------------------------------------------
+
+async def get_current_org_id(
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+) -> str:
+    """
+    Resuelve la organización del usuario autenticado.
+    Busca la org donde el usuario es OWNER.
+    Si no tiene org, lanza 404 indicando que debe crearla primero.
+    """
+    stmt = select(OrganizationMember.organization_id).where(
+        OrganizationMember.user_id == user_id,
+        OrganizationMember.is_owner.is_(True),
+        OrganizationMember.deleted_at.is_(None),
+    )
+    result = await session.execute(stmt)
+    org_id = result.scalar_one_or_none()
+
+    if not org_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No tienes una organización. Crea una primero.",
+        )
+
+    # Verificar que la org no esté soft-deleted
+    org_stmt = select(Organization.id).where(
+        Organization.id == org_id,
+        Organization.deleted_at.is_(None),
+    )
+    org_result = await session.execute(org_stmt)
+    if not org_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tu organización ya no está disponible.",
+        )
+
+    return org_id
+
+
+async def get_current_org(
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+) -> Organization:
+    """
+    Igual que get_current_org_id pero retorna la entidad Organization completa
+    con el plan cargado. Útil para endpoints que necesitan validar cuota.
+    """
+    stmt = select(OrganizationMember.organization_id).where(
+        OrganizationMember.user_id == user_id,
+        OrganizationMember.is_owner.is_(True),
+        OrganizationMember.deleted_at.is_(None),
+    )
+    result = await session.execute(stmt)
+    org_id = result.scalar_one_or_none()
+
+    if not org_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No tienes una organización. Crea una primero.",
+        )
+
+    org_stmt = (
+        select(Organization)
+        .options(selectinload(Organization.plan))
+        .where(Organization.id == org_id, Organization.deleted_at.is_(None))
+    )
+    org_result = await session.execute(org_stmt)
+    org = org_result.scalar_one_or_none()
+
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tu organización ya no está disponible.",
+        )
+
+    return org
+
+
+# ---------------------------------------------------------------------------
+# Verify membership (por query param — se mantiene para casos específicos)
+# ---------------------------------------------------------------------------
 
 async def verify_org_membership(
     org_id: str = Query(..., description="Organization ID"),

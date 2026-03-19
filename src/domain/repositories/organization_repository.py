@@ -19,6 +19,11 @@ class OrganizationRepository(ABC):
         ...
 
     @abstractmethod
+    async def get_by_owner(self, user_id: str) -> Optional[Organization]:
+        """Retorna la organización donde el usuario es owner (máx 1)."""
+        ...
+
+    @abstractmethod
     async def create(self, organization: Organization) -> Organization:
         ...
 

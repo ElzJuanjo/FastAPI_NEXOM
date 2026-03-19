@@ -2,6 +2,11 @@
 Caso de uso: Autenticación con Google OAuth.
 Crea el usuario si no existe, o lo loguea si ya existe.
 Soporta vincular Google a una cuenta email existente.
+
+Flujo con frontend:
+- Genera access_token + refresh_token de NexOS
+- Retorna ambos tokens (el router se encarga de setear la cookie
+  y redirigir con el access_token en la URL).
 """
 
 from __future__ import annotations
@@ -18,8 +23,13 @@ from infra.tools.google_oauth_client import (
     get_google_user_info,
     GoogleOAuthError,
 )
-from fastapi.responses import RedirectResponse
-from infra.config.database import settings
+import secrets
+import string
+
+
+def _generate_referral_code() -> str:
+    chars = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(chars) for _ in range(8))
 
 
 class GoogleAuthError(Exception):
@@ -94,9 +104,7 @@ class GoogleAuth:
                     provider_email=email,
                     access_token=access_token_google,
                     refresh_token=refresh_token_google,
-                    token_expires_at=datetime.now(timezone.utc)
-                    if not expires_in
-                    else datetime.fromtimestamp(
+                    token_expires_at=datetime.fromtimestamp(
                         datetime.now(timezone.utc).timestamp() + expires_in,
                         tz=timezone.utc,
                     ),
@@ -119,6 +127,7 @@ class GoogleAuth:
             if not user.avatar_url and picture:
                 user.avatar_url = picture
 
+            # Google verifica el email por nosotros
             user.is_verified = True
 
         else:
@@ -130,7 +139,8 @@ class GoogleAuth:
                 full_name=name,
                 avatar_url=picture,
                 is_active=True,
-                is_verified=True,
+                is_verified=True,  # Google ya verificó el email
+                referral_code=_generate_referral_code(),
             )
             user = await self._user_repo.create(user)
 
@@ -152,6 +162,9 @@ class GoogleAuth:
         nexos_access_token = create_access_token(subject=user.id)
         nexos_refresh_token = create_refresh_token(subject=user.id)
 
-        redirect_url = f"{settings.FRONTEND_URL}/auth/callback?access_token={nexos_access_token}&refresh_token={nexos_refresh_token}"
-        
-        return RedirectResponse(url=redirect_url)
+        return {
+            "user": user,
+            "access_token": nexos_access_token,
+            "refresh_token": nexos_refresh_token,
+            "is_new_user": is_new_user,
+        }

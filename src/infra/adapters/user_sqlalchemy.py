@@ -57,3 +57,9 @@ class UserSQLAlchemyRepository(UserRepository):
         self._session.add(provider)
         await self._session.flush()
         return provider
+    
+    async def get_by_referral_code(self, code: str):
+        from domain.entities.user import User
+        stmt = select(User).where(User.referral_code == code, User.deleted_at.is_(None))
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()

@@ -20,8 +20,7 @@ from interfaces.dependencies.flow_dependencies import (
     get_flow_add_step, get_flow_step_update,
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
-
-from interfaces.dependencies.org_membership import verify_org_membership
+from interfaces.dependencies.org_membership import get_current_org_id
 
 router = APIRouter(prefix="/flows", tags=["Flows"])
 
@@ -29,7 +28,7 @@ router = APIRouter(prefix="/flows", tags=["Flows"])
 @router.post("", response_model=FlowResponse, status_code=status.HTTP_201_CREATED)
 async def create_flow(
     body: CreateFlowRequest,
-    org_id: str = Depends(verify_org_membership),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     use_case: FlowCreate = Depends(get_flow_create),
     session: AsyncSession = Depends(get_session),
@@ -54,7 +53,7 @@ async def create_flow(
 
 @router.get("", response_model=FlowListResponse)
 async def list_flows(
-    org_id: str = Depends(verify_org_membership),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     use_case: FlowList = Depends(get_flow_list),
 ):

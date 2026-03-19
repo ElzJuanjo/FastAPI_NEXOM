@@ -1,5 +1,5 @@
 """
-Endpoints CRUD de Brand, scoped por organización.
+Endpoints CRUD de Brand, scoped por organización del usuario.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,8 +15,7 @@ from interfaces.dependencies.brand_dependencies import (
     get_brand_create, get_brand_list, get_brand_update, get_brand_delete,
 )
 from interfaces.dependencies.auth_dependencies import get_current_user_id
-
-from interfaces.dependencies.org_membership import verify_org_membership
+from interfaces.dependencies.org_membership import get_current_org_id
 
 router = APIRouter(prefix="/brands", tags=["Brands"])
 
@@ -24,7 +23,7 @@ router = APIRouter(prefix="/brands", tags=["Brands"])
 @router.post("", response_model=BrandResponse, status_code=status.HTTP_201_CREATED)
 async def create_brand(
     body: CreateBrandRequest,
-    org_id: str = Depends(verify_org_membership),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     use_case: BrandCreate = Depends(get_brand_create),
     session: AsyncSession = Depends(get_session),
@@ -44,7 +43,7 @@ async def create_brand(
 
 @router.get("", response_model=BrandListResponse)
 async def list_brands(
-    org_id: str = Depends(verify_org_membership),
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     use_case: BrandList = Depends(get_brand_list),
 ):

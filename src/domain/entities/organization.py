@@ -34,7 +34,7 @@ class Organization(UUIDPk, TimestampMixin, Base):
     members:       Mapped[List["OrganizationMember"]] = relationship(back_populates="organization", cascade="all, delete-orphan")
     brands:        Mapped[List["Brand"]]              = relationship(back_populates="organization")
     products:      Mapped[List["Product"]]             = relationship(back_populates="organization")
-    agent_configs: Mapped[List["AgentConfig"]]        = relationship(back_populates="organization")
+    agent_tasks:   Mapped[List["AgentTask"]]          = relationship(back_populates="organization")
     flows:         Mapped[List["Flow"]]               = relationship(back_populates="organization")
     
     __table_args__ = (

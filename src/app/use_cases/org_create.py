@@ -1,6 +1,7 @@
 """
 Caso de uso: Crear organización.
 Asigna plan FREE por defecto y agrega al usuario como owner.
+Restricción: un usuario solo puede ser owner de UNA organización.
 Idempotente — si el slug ya existe, lanza error controlado.
 """
 
@@ -20,6 +21,10 @@ class PlanNotFoundError(Exception):
     pass
 
 
+class UserAlreadyHasOrganizationError(Exception):
+    pass
+
+
 class OrgCreate:
 
     def __init__(
@@ -31,6 +36,13 @@ class OrgCreate:
         self._plan_repo = plan_repo
 
     async def execute(self, name: str, slug: str, timezone_str: str, owner_user_id: str) -> Organization:
+        # Restricción 1:1 — verificar que el usuario no sea owner de otra org
+        existing_org = await self._org_repo.get_by_owner(owner_user_id)
+        if existing_org:
+            raise UserAlreadyHasOrganizationError(
+                "Ya tienes una organización. Solo puedes tener una organización como propietario."
+            )
+
         # Idempotencia: verificar slug único
         existing = await self._org_repo.get_by_slug(slug)
         if existing:

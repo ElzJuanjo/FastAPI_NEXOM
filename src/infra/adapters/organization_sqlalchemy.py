@@ -35,6 +35,22 @@ class OrganizationSQLAlchemyRepository(OrganizationRepository):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_owner(self, user_id: str) -> Optional[Organization]:
+        """Retorna la organización donde el usuario es owner."""
+        stmt = (
+            select(Organization)
+            .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
+            .options(selectinload(Organization.plan))
+            .where(
+                OrganizationMember.user_id == user_id,
+                OrganizationMember.is_owner.is_(True),
+                OrganizationMember.deleted_at.is_(None),
+                Organization.deleted_at.is_(None),
+            )
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def create(self, organization: Organization) -> Organization:
         self._session.add(organization)
         await self._session.flush()

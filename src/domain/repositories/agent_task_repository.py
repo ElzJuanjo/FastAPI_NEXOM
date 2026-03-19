@@ -15,7 +15,11 @@ class AgentTaskRepository(ABC):
         ...
 
     @abstractmethod
-    async def list_by_config(self, config_id: str, limit: int = 20) -> List[AgentTask]:
+    async def list_by_organization(self, org_id: str, limit: int = 20) -> List[AgentTask]:
+        ...
+
+    @abstractmethod
+    async def list_by_org_and_type(self, org_id: str, agent_type: str, limit: int = 20) -> List[AgentTask]:
         ...
 
     @abstractmethod

@@ -31,6 +31,7 @@ class Creative(UUIDPk, TimestampMixin, Base):
     # Archivo en S3
     file_url:           Mapped[Optional[str]]     = mapped_column(String(512))
     s3_key:             Mapped[Optional[str]]     = mapped_column(String(512), comment="S3 object key for deletion")
+    batch_id:           Mapped[Optional[str]]     = mapped_column(UUID(as_uuid=False), ForeignKey("creative_batches.id", ondelete="SET NULL"), nullable=True)
     file_size_bytes:    Mapped[Optional[int]]     = mapped_column(BigInteger)
 
     # Categorización
@@ -45,6 +46,7 @@ class Creative(UUIDPk, TimestampMixin, Base):
     # Relaciones
     product: Mapped[Optional["Product"]] = relationship(back_populates="creatives")
     organization: Mapped["Organization"] = relationship()
+    batch: Mapped[Optional["CreativeBatch"]] = relationship(back_populates="creatives")
 
     __table_args__ = (
         Index("ix_creatives_product_status", "product_id", "status"),

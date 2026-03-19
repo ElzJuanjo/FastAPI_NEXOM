@@ -94,12 +94,24 @@ async def persist_multiple_creatives(
 ) -> list[Creative]:
     """
     Persiste múltiples imágenes como Creatives.
-    Cada item en images tiene: image, style, format, platform, angle, prompt_used, model
+    Normaliza el campo 'image' que puede venir como string base64, URL, o dict de OpenAI vision.
     """
     creatives = []
 
     for item in images:
-        base64_data = item.get("image")
+        raw_image = item.get("image")
+        if not raw_image:
+            continue
+
+        # Normalizar: puede ser string o dict OpenAI {"type": "image_url", "image_url": {"url": "data:..."}}
+        if isinstance(raw_image, dict):
+            base64_data = raw_image.get("image_url", {}).get("url") or raw_image.get("url", "")
+        elif isinstance(raw_image, str):
+            base64_data = raw_image
+        else:
+            logger.warning(f"Unexpected image type: {type(raw_image)}")
+            continue
+
         if not base64_data:
             continue
 

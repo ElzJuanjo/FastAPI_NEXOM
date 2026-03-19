@@ -27,6 +27,7 @@ class CreativeResponse(BaseModel):
     id: str
     organization_id: str
     product_id: Optional[str] = None
+    batch_id: Optional[str] = None
     agent_type: str
     status: str
     file_url: Optional[str] = None
@@ -44,3 +45,25 @@ class CreativeResponse(BaseModel):
 
 class CreativeListResponse(BaseModel):
     creatives: list[CreativeResponse]
+    
+
+class CreativeBatchResponse(BaseModel):
+    id: str
+    organization_id: str
+    product_id: Optional[str] = None
+    name: str
+    preset_id: Optional[str] = None
+    status: str
+    total_expected: int
+    total_generated: int
+    total_failed: int
+    credits_consumed: int
+    config: Optional[dict] = None
+    creatives: list[CreativeResponse] = []
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CreativeBatchListResponse(BaseModel):
+    batches: list[CreativeBatchResponse]

@@ -27,17 +27,29 @@ def verify_password(plain: str, hashed: str) -> bool:
 # JWT tokens
 # ---------------------------------------------------------------------------
 
-def create_access_token(subject: str, extra: dict | None = None) -> str:
+def create_access_token(
+    subject: str,
+    extra: dict | None = None,
+    extra_claims: dict | None = None,
+    expires_minutes: int | None = None,
+) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "iat": now,
-        "exp": now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
+        "exp": now + timedelta(minutes=expires_minutes or settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
         "type": "access",
     }
     if extra:
         payload.update(extra)
+    if extra_claims:
+        payload.update(extra_claims)
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> dict:
+    """Decodifica un access token. No valida el type para permitir tokens con purpose custom."""
+    return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
 
 
 def create_refresh_token(subject: str) -> str:
@@ -51,13 +63,17 @@ def create_refresh_token(subject: str) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_verification_token(subject: str) -> str:
-    """Genera un JWT de corta duración para verificar email."""
+def create_verification_token(subject: str, expires_minutes: int | None = None) -> str:
+    """Genera un JWT de corta duración para verificar email o reset password."""
     now = datetime.now(timezone.utc)
+    if expires_minutes:
+        delta = timedelta(minutes=expires_minutes)
+    else:
+        delta = timedelta(hours=settings.JWT_VERIFICATION_TOKEN_EXPIRE_HOURS)
     payload = {
         "sub": subject,
         "iat": now,
-        "exp": now + timedelta(hours=settings.JWT_VERIFICATION_TOKEN_EXPIRE_HOURS),
+        "exp": now + delta,
         "type": "email_verification",
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)

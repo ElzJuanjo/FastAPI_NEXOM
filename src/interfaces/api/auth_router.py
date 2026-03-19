@@ -12,9 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session, settings
 from app.dto.auth_dto import (
     RegisterRequest, LoginRequest,
-    AuthResponse, UserResponse, TokenResponse,
+    AuthResponse, AuthLoginResponse, UserResponse, TokenResponse,
     VerifyEmailRequest, VerifyEmailResponse,
     ResendVerificationRequest, ResendVerificationResponse,
+    ChangePasswordRequest, ChangePasswordResponse,
+    Setup2FAResponse, Verify2FARequest, Verify2FAResponse, Disable2FARequest,
+    Verify2FALoginRequest,
+    ForgotPasswordRequest, ForgotPasswordResponse,
+    ResetPasswordRequest, ResetPasswordResponse,
 )
 from app.use_cases.auth_register import AuthRegister, EmailAlreadyExistsError
 from app.use_cases.auth_login import AuthLogin, InvalidCredentialsError, InactiveUserError
@@ -101,29 +106,178 @@ async def register(
 # Login
 # ---------------------------------------------------------------------------
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthLoginResponse)
 @limiter.limit("5/minute")
 async def login(
     request: Request,
     body: LoginRequest,
     response: Response,
     use_case: AuthLogin = Depends(get_auth_login),
+    session: AsyncSession = Depends(get_session),
 ):
     try:
         result = await use_case.execute(email=body.email, password=body.password)
     except InvalidCredentialsError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos.")
     except InactiveUserError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tu cuenta está desactivada. Contacta soporte.")
+
+    user = result["user"]
+
+    # Si tiene 2FA habilitado, no entregar tokens todavía
+    if user.is_2fa_enabled and user.totp_secret:
+        from infra.config.security import create_access_token
+        # Crear token temporal de corta vida (5 min) solo para completar 2FA
+        temp_token = create_access_token(
+            subject=user.id,
+            extra_claims={"purpose": "2fa_verification"},
+            expires_minutes=5,
+        )
+
+        return AuthLoginResponse(
+            requires_2fa=True,
+            temp_token=temp_token,
+        )
 
     _set_refresh_cookie(response, result["refresh_token"])
 
-    return AuthResponse(
-        user=UserResponse.model_validate(result["user"]),
-        tokens=TokenResponse(
-            access_token=result["access_token"],
-        ),
+    return AuthLoginResponse(
+        user=UserResponse.model_validate(user),
+        tokens=TokenResponse(access_token=result["access_token"]),
+        requires_2fa=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# Login — 2FA Verification Step
+# ---------------------------------------------------------------------------
+
+@router.post("/login/2fa", response_model=AuthLoginResponse)
+@limiter.limit("10/minute")
+async def login_verify_2fa(
+    request: Request,
+    body: Verify2FALoginRequest,
+    response: Response,
+    user_repo: UserRepository = Depends(get_user_repository),
+    session: AsyncSession = Depends(get_session),
+):
+    """Segundo paso del login: verificar código TOTP."""
+    import pyotp
+    from infra.config.security import decode_access_token, create_access_token, create_refresh_token
+
+    # Decodificar temp token
+    try:
+        payload = decode_access_token(body.temp_token)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token temporal inválido o expirado. Inicia sesión de nuevo.")
+
+    if payload.get("purpose") != "2fa_verification":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token no válido para verificación 2FA.")
+
+    user_id = payload.get("sub")
+    user = await user_repo.get_by_id(user_id)
+    if not user or not user.totp_secret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado.")
+
+    # Verificar código TOTP
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(body.code, valid_window=1):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Código 2FA inválido. Verifica e intenta de nuevo.")
+
+    # Generar tokens reales
+    access_token = create_access_token(subject=user.id)
+    refresh_token = create_refresh_token(subject=user.id)
+
+    _set_refresh_cookie(response, refresh_token)
+
+    return AuthLoginResponse(
+        user=UserResponse.model_validate(user),
+        tokens=TokenResponse(access_token=access_token),
+        requires_2fa=False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Forgot Password
+# ---------------------------------------------------------------------------
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    user_repo: UserRepository = Depends(get_user_repository),
+):
+    """Envía email con link para resetear contraseña. Siempre retorna 200 por seguridad."""
+    user = await user_repo.get_by_email(body.email)
+
+    if user and user.is_active:
+        try:
+            token = create_verification_token(subject=user.id, expires_minutes=15)
+            # Reutilizar el email client para enviar reset
+            from infra.tools.email_client import send_email
+            reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+            await send_email(
+                to=user.email,
+                subject="Restablecer contraseña — NexOS",
+                html_body=f"""
+                <h2>Hola {user.full_name},</h2>
+                <p>Recibimos una solicitud para restablecer tu contraseña.</p>
+                <p><a href="{reset_link}" style="display:inline-block;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">Restablecer contraseña</a></p>
+                <p>Este enlace expira en 15 minutos.</p>
+                <p>Si no solicitaste este cambio, ignora este correo.</p>
+                <br><p>— Equipo NexOS</p>
+                """,
+            )
+        except Exception as e:
+            logger.error(f"Error enviando reset password a {body.email}: {e}")
+
+    return ForgotPasswordResponse(
+        message="Si el email está registrado, recibirás instrucciones para restablecer tu contraseña.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Reset Password (con token del email)
+# ---------------------------------------------------------------------------
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+async def reset_password(
+    body: ResetPasswordRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Restablece la contraseña usando el token recibido por email."""
+    from infra.config.security import hash_password
+    from domain.entities.user import UserAuthProvider
+    from domain.entities.base import AuthProvider
+    from sqlalchemy import select
+
+    try:
+        payload = decode_verification_token(body.token)
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace ha expirado. Solicita uno nuevo.")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enlace inválido.")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido.")
+
+    # Buscar auth provider de email
+    stmt = select(UserAuthProvider).where(
+        UserAuthProvider.user_id == user_id,
+        UserAuthProvider.provider == AuthProvider.EMAIL,
+    )
+    result = await session.execute(stmt)
+    email_provider = result.scalar_one_or_none()
+
+    if not email_provider:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se encontró cuenta con autenticación por email.")
+
+    email_provider.password_hash = hash_password(body.new_password)
+    await session.commit()
+
+    return ResetPasswordResponse(message="Contraseña restablecida exitosamente. Ya puedes iniciar sesión.")
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +485,192 @@ async def google_callback(
     )
 
     return redirect
+
+
+# ---------------------------------------------------------------------------
+# Change Password
+# ---------------------------------------------------------------------------
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+@limiter.limit("5/minute")
+async def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    user_id: str = Depends(get_current_user_id),
+    user_repo: UserRepository = Depends(get_user_repository),
+    session: AsyncSession = Depends(get_session),
+):
+    """Cambiar contraseña del usuario autenticado."""
+    from infra.config.security import verify_password, hash_password
+    from domain.entities.user import UserAuthProvider
+    from domain.entities.base import AuthProvider
+    from sqlalchemy import select
+
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    # Buscar el provider de email
+    stmt = select(UserAuthProvider).where(
+        UserAuthProvider.user_id == user_id,
+        UserAuthProvider.provider == AuthProvider.EMAIL,
+    )
+    result = await session.execute(stmt)
+    email_provider = result.scalar_one_or_none()
+
+    if not email_provider or not email_provider.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tu cuenta usa Google para autenticarse. No puedes cambiar la contraseña.",
+        )
+
+    # Verificar contraseña actual
+    if not verify_password(body.current_password, email_provider.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña actual es incorrecta.",
+        )
+
+    # Verificar que la nueva sea diferente
+    if body.current_password == body.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña debe ser diferente a la actual.",
+        )
+
+    email_provider.password_hash = hash_password(body.new_password)
+    await session.commit()
+
+    return ChangePasswordResponse(message="Contraseña actualizada exitosamente.")
+
+
+# ---------------------------------------------------------------------------
+# 2FA — Setup
+# ---------------------------------------------------------------------------
+
+@router.post("/2fa/setup", response_model=Setup2FAResponse)
+async def setup_2fa(
+    user_id: str = Depends(get_current_user_id),
+    user_repo: UserRepository = Depends(get_user_repository),
+    session: AsyncSession = Depends(get_session),
+):
+    """Genera un secreto TOTP y retorna el QR para Google Authenticator."""
+    import pyotp
+    import qrcode
+    import io
+    import base64
+
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if user.is_2fa_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="2FA ya está habilitado. Desactívalo primero si quieres regenerar.",
+        )
+
+    # Generar secreto TOTP
+    secret = pyotp.random_base32()
+    user.totp_secret = secret
+    await session.commit()
+
+    # Generar URL para apps de autenticación
+    totp = pyotp.TOTP(secret)
+    otpauth_url = totp.provisioning_uri(name=user.email, issuer_name="NexOS")
+
+    # Generar QR como base64
+    qr = qrcode.make(otpauth_url)
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    return Setup2FAResponse(
+        secret=secret,
+        otpauth_url=otpauth_url,
+        qr_base64=f"data:image/png;base64,{qr_base64}",
+    )
+
+
+# ---------------------------------------------------------------------------
+# 2FA — Verify & Enable
+# ---------------------------------------------------------------------------
+
+@router.post("/2fa/verify", response_model=Verify2FAResponse)
+async def verify_2fa(
+    body: Verify2FARequest,
+    user_id: str = Depends(get_current_user_id),
+    user_repo: UserRepository = Depends(get_user_repository),
+    session: AsyncSession = Depends(get_session),
+):
+    """Verifica el código TOTP y activa 2FA."""
+    import pyotp
+
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if not user.totp_secret:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Primero debes configurar 2FA con /2fa/setup.",
+        )
+
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(body.code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código inválido. Verifica e intenta de nuevo.",
+        )
+
+    user.is_2fa_enabled = True
+    await session.commit()
+
+    return Verify2FAResponse(
+        message="2FA activado exitosamente.",
+        is_2fa_enabled=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 2FA — Disable
+# ---------------------------------------------------------------------------
+
+@router.post("/2fa/disable", response_model=Verify2FAResponse)
+async def disable_2fa(
+    body: Disable2FARequest,
+    user_id: str = Depends(get_current_user_id),
+    user_repo: UserRepository = Depends(get_user_repository),
+    session: AsyncSession = Depends(get_session),
+):
+    """Desactiva 2FA verificando con un código válido."""
+    import pyotp
+
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if not user.is_2fa_enabled or not user.totp_secret:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="2FA no está habilitado.",
+        )
+
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(body.code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código inválido.",
+        )
+
+    user.is_2fa_enabled = False
+    user.totp_secret = None
+    await session.commit()
+
+    return Verify2FAResponse(
+        message="2FA desactivado.",
+        is_2fa_enabled=False,
+    )
 
 
 # ---------------------------------------------------------------------------

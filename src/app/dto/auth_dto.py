@@ -32,6 +32,33 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
+    
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=128)
+    
+
+class Verify2FARequest(BaseModel):
+    code: str = Field(min_length=6, max_length=6)
+    
+
+class Disable2FARequest(BaseModel):
+    code: str = Field(min_length=6, max_length=6)
+    
+
+class Verify2FALoginRequest(BaseModel):
+    temp_token: str
+    code: str = Field(min_length=6, max_length=6)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+    
+    
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +77,7 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     is_active: bool
     is_verified: bool
+    is_2fa_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -65,4 +93,35 @@ class VerifyEmailResponse(BaseModel):
 
 
 class ResendVerificationResponse(BaseModel):
+    message: str
+    
+
+class ChangePasswordResponse(BaseModel):
+    message: str
+
+
+class Setup2FAResponse(BaseModel):
+    secret: str
+    otpauth_url: str
+    qr_base64: str
+    
+
+class Verify2FAResponse(BaseModel):
+    message: str
+    is_2fa_enabled: bool
+    
+
+class AuthLoginResponse(BaseModel):
+    """Response que puede requerir 2FA."""
+    user: Optional[UserResponse] = None
+    tokens: Optional[TokenResponse] = None
+    requires_2fa: bool = False
+    temp_token: Optional[str] = None
+    
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+    
+
+class ResetPasswordResponse(BaseModel):
     message: str

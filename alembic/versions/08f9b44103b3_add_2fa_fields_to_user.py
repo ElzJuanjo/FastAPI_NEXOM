@@ -1,8 +1,8 @@
-"""remove_agent_configs_refactor_agent_tasks
+"""add 2fa fields to user
 
-Revision ID: 68f6ac03b937
+Revision ID: 08f9b44103b3
 Revises: 
-Create Date: 2026-03-18 20:49:50.292350
+Create Date: 2026-03-19 08:41:16.494136
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '68f6ac03b937'
+revision: str = '08f9b44103b3'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -45,6 +45,8 @@ def upgrade() -> None:
     sa.Column('is_verified', sa.Boolean(), nullable=False),
     sa.Column('referral_code', sa.String(length=20), nullable=True),
     sa.Column('referred_by_user_id', sa.UUID(as_uuid=False), nullable=True),
+    sa.Column('totp_secret', sa.String(length=64), nullable=True),
+    sa.Column('is_2fa_enabled', sa.Boolean(), nullable=False),
     sa.Column('notif_prefs', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Keys: email_task_complete, email_flow_error, email_recommendation, in_app_task_complete, in_app_flow_error'),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

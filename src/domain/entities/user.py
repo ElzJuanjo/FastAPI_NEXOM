@@ -28,6 +28,9 @@ class User(UUIDPk, TimestampMixin, Base):
     
     referral_code:       Mapped[Optional[str]] = mapped_column(String(20), unique=True, nullable=True)
     referred_by_user_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=True)
+    
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    is_2fa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
     notif_prefs: Mapped[Optional[dict]] = mapped_column(
         JSONB,

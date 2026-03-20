@@ -1,8 +1,8 @@
-"""add creative_batch entity
+"""remove preset_id from creative_batch
 
-Revision ID: 390beb1ea077
+Revision ID: a9c1934be202
 Revises: 
-Create Date: 2026-03-19 15:18:40.847352
+Create Date: 2026-03-19 23:00:21.116990
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '390beb1ea077'
+revision: str = 'a9c1934be202'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -321,7 +321,6 @@ def upgrade() -> None:
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('product_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('preset_id', sa.String(length=50), nullable=True),
     sa.Column('status', sa.Enum('INACTIVE', 'RUNNING', 'COMPLETED', 'ERROR', 'PAUSED', name='flowstatus'), nullable=False),
     sa.Column('total_expected', sa.Integer(), nullable=False),
     sa.Column('total_generated', sa.Integer(), nullable=False),

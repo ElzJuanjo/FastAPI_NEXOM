@@ -21,7 +21,6 @@ class CreativeBatch(UUIDPk, TimestampMixin, Base):
     organization_id:  Mapped[str]            = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     product_id:       Mapped[Optional[str]]  = mapped_column(UUID(as_uuid=False), ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     name:             Mapped[str]            = mapped_column(String(255), nullable=False)
-    preset_id:        Mapped[Optional[str]]  = mapped_column(String(50))
     status:           Mapped[FlowStatus]     = mapped_column(Enum(FlowStatus), default=FlowStatus.RUNNING, nullable=False)
     total_expected:   Mapped[int]            = mapped_column(Integer, default=0)
     total_generated:  Mapped[int]            = mapped_column(Integer, default=0)

@@ -1,11 +1,9 @@
 """
-Endpoints para generación masiva de creativos publicitarios.
+Endpoints para generación masiva de creativos y gestión de galerías.
 """
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -22,8 +20,9 @@ from interfaces.dependencies.auth_dependencies import get_current_user_id
 from interfaces.dependencies.org_membership import get_current_org, get_current_org_id
 from domain.entities.organization import Organization
 from domain.entities.creative_batch import CreativeBatch
+from domain.entities.creative import Creative
 from domain.entities.base import FlowStatus
-from app.dto.creative_dto import CreativeBatchResponse, CreativeBatchListResponse, CreativeResponse
+from app.dto.creative_dto import CreativeBatchResponse, CreativeBatchListResponse, CreativeBatchRequest, CreateGalleryRequest, UpdateGalleryRequest, MoveCreativeRequest
 from app.use_cases.creative_persist import persist_multiple_creatives
 
 logger = logging.getLogger(__name__)
@@ -31,22 +30,107 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/creative-batches", tags=["Creative Batches"])
 
 
-class CreativeBatchRequest(BaseModel):
-    product_id: Optional[str] = Field(default=None, description="ID del producto para vincular creativos")
-    product_name: str = Field(..., description="Nombre del producto")
-    product_description: str = Field(..., description="Descripción breve del producto")
-    brand_palette: Optional[str] = Field(default="", description="Colores de marca (hex)")
-    preset_id: str = Field(default="starter", description="starter, campaign, full")
-    custom_angles: Optional[list[str]] = None
-    custom_formats: Optional[list[str]] = None
-    custom_styles: Optional[list[str]] = None
-
+# ── Presets ──────────────────────────────────────────────────────────────────
 
 @router.get("/presets")
 async def get_presets(user_id: str = Depends(get_current_user_id)):
-    """Lista los presets de creative batches disponibles con su costo."""
     return {"presets": list_presets()}
 
+
+# ── Create empty gallery ─────────────────────────────────────────────────────
+
+@router.post("/gallery", response_model=CreativeBatchResponse, status_code=status.HTTP_201_CREATED)
+async def create_gallery(
+    body: CreateGalleryRequest,
+    org_id: str = Depends(get_current_org_id),
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Crea una galería vacía."""
+    # Validar nombre único en la org
+    existing = await _find_batch_by_name(session, org_id, body.name)
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Ya existe una galería con el nombre '{body.name}'.")
+
+    batch = CreativeBatch(
+        organization_id=org_id,
+        product_id=body.product_id,
+        name=body.name,
+        status=FlowStatus.COMPLETED,
+        total_expected=0,
+        total_generated=0,
+    )
+    session.add(batch)
+    await session.commit()
+
+    stmt = select(CreativeBatch).options(selectinload(CreativeBatch.creatives)).where(CreativeBatch.id == batch.id)
+    result = await session.execute(stmt)
+    batch = result.scalar_one()
+    return CreativeBatchResponse.model_validate(batch)
+
+
+# ── Update gallery ───────────────────────────────────────────────────────────
+
+@router.patch("/{batch_id}", response_model=CreativeBatchResponse)
+async def update_gallery(
+    batch_id: str,
+    body: UpdateGalleryRequest,
+    org_id: str = Depends(get_current_org_id),
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Edita nombre o producto de una galería."""
+    stmt = select(CreativeBatch).options(selectinload(CreativeBatch.creatives)).where(
+        CreativeBatch.id == batch_id, CreativeBatch.deleted_at.is_(None)
+    )
+    result = await session.execute(stmt)
+    batch = result.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Galería no encontrada")
+
+    if body.name is not None and body.name != batch.name:
+        existing = await _find_batch_by_name(session, org_id, body.name)
+        if existing and existing.id != batch_id:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Ya existe una galería con el nombre '{body.name}'.")
+        batch.name = body.name
+
+    if body.product_id is not None:
+        batch.product_id = body.product_id or None
+
+    await session.commit()
+    await session.refresh(batch)
+    return CreativeBatchResponse.model_validate(batch)
+
+
+# ── Move creative to gallery ────────────────────────────────────────────────
+
+@router.patch("/move-creative/{creative_id}")
+async def move_creative_to_gallery(
+    creative_id: str,
+    body: MoveCreativeRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Mueve un creativo a otra galería, o lo desasocia (batch_id=null)."""
+    stmt = select(Creative).where(Creative.id == creative_id, Creative.deleted_at.is_(None))
+    result = await session.execute(stmt)
+    creative = result.scalar_one_or_none()
+    if not creative:
+        raise HTTPException(status_code=404, detail="Creativo no encontrado")
+
+    if body.batch_id:
+        batch_stmt = select(CreativeBatch).where(CreativeBatch.id == body.batch_id, CreativeBatch.deleted_at.is_(None))
+        batch_result = await session.execute(batch_stmt)
+        if not batch_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Galería destino no encontrada")
+
+    creative.batch_id = body.batch_id
+    await session.commit()
+
+    return {"message": "ok", "creative_id": creative_id, "batch_id": body.batch_id}
+
+
+# ── Generate batch ───────────────────────────────────────────────────────────
 
 @router.post("", response_model=CreativeBatchResponse)
 @limiter.limit("3/minute")
@@ -57,10 +141,10 @@ async def generate_creative_batch(
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_session),
 ):
-    """Genera un batch de creativos publicitarios, los sube a S3 y los persiste."""
+    """Genera creativos y los agrupa en una galería. Si gallery_name existe, acumula ahí."""
     plan = organization.plan
+    org_id = str(organization.id)
 
-    # Calcular créditos
     preset = BATCH_PRESETS.get(body.preset_id, BATCH_PRESETS["starter"])
     total_images = preset["count"]
     credits_needed = total_images * get_credit_cost("image_gen")
@@ -72,76 +156,130 @@ async def generate_creative_batch(
             detail=f"Créditos insuficientes: necesitas {credits_needed}, te quedan {remaining}.",
         )
 
-    # Crear registro de batch en BD
-    batch = CreativeBatch(
-        organization_id=str(organization.id),
-        product_id=body.product_id,
-        name=f"{body.product_name} — {preset['name']}",
-        preset_id=body.preset_id,
-        status=FlowStatus.RUNNING,
-        total_expected=total_images,
-        config={
-            "product_name": body.product_name,
-            "product_description": body.product_description,
-            "brand_palette": body.brand_palette,
-        },
-    )
-    session.add(batch)
-    await session.flush()  # para obtener batch.id
+    # Determinar nombre de galería
+    gallery_name = body.gallery_name or body.product_name
 
-    # Ejecutar generación de imágenes
+    # Buscar galería existente o crear nueva
+    batch = await _find_batch_by_name(session, org_id, gallery_name)
+
+    if not batch:
+        batch = CreativeBatch(
+            organization_id=org_id,
+            product_id=body.product_id,
+            name=gallery_name,
+            status=FlowStatus.RUNNING,
+            total_expected=total_images,
+            config={
+                "product_description": body.product_description,
+                "brand_palette": body.brand_palette,
+            },
+        )
+        session.add(batch)
+        await session.flush()
+    else:
+        batch.status = FlowStatus.RUNNING
+        batch.total_expected = (batch.total_expected or 0) + total_images
+        # Actualizar config con la última descripción
+        existing_config = batch.config or {}
+        existing_config["product_description"] = body.product_description
+        if body.brand_palette:
+            existing_config["brand_palette"] = body.brand_palette
+        batch.config = existing_config
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(batch, "config")
+        await session.flush()
+
+    # Ejecutar generación
     try:
         batch_result = await execute_creative_batch(
             product_name=body.product_name,
             product_description=body.product_description,
             brand_palette=body.brand_palette,
             preset_id=body.preset_id,
-            custom_angles=body.custom_angles,
-            custom_formats=body.custom_formats,
-            custom_styles=body.custom_styles,
         )
     except Exception as e:
         batch.status = FlowStatus.ERROR
         await session.commit()
         raise HTTPException(status_code=500, detail=f"Error generando batch: {str(e)}")
 
-    # Persistir imágenes en S3 + BD
-    images_data = batch_result.get("images", [])   
+    # Persistir imágenes
+    images_data = batch_result.get("images", [])
     creatives = []
-
     if images_data:
         creatives = await persist_multiple_creatives(
             session=session,
             images=images_data,
-            org_id=str(organization.id),
+            org_id=org_id,
             product_id=body.product_id,
         )
-
-        # Vincular creativos al batch
         for creative in creatives:
             creative.batch_id = batch.id
 
     # Actualizar batch
-    batch.total_generated = batch_result.get("total_generated", len(creatives))
-    batch.total_failed = batch_result.get("total_failed", 0)
-    batch.credits_consumed = batch_result.get("credits_consumed", 0)
-    batch.status = FlowStatus.COMPLETED if batch.total_generated > 0 else FlowStatus.ERROR
+    new_generated = batch_result.get("total_generated", len(creatives))
+    new_failed = batch_result.get("total_failed", 0)
+    new_credits = batch_result.get("credits_consumed", 0)
+
+    batch.total_generated = (batch.total_generated or 0) + new_generated
+    batch.total_failed = (batch.total_failed or 0) + new_failed
+    batch.credits_consumed = (batch.credits_consumed or 0) + new_credits
+    batch.status = FlowStatus.COMPLETED if new_generated > 0 else FlowStatus.ERROR
 
     # Cobrar créditos
-    organization.credits_used_this_month += batch.credits_consumed
+    organization.credits_used_this_month += new_credits
+
+    # Registrar en agent_tasks para actividad reciente
+    from domain.entities.agent import AgentTask
+    from datetime import datetime, timezone
+
+    task_status = "completed"
+    task_error = None
+    if new_failed > 0 and new_generated > 0:
+        task_status = "completed"
+        task_error = f"{new_failed} de {total_images} imágenes fallaron"
+    elif new_failed > 0 and new_generated == 0:
+        task_status = "error"
+        task_error = f"Todas las {new_failed} imágenes fallaron"
+
+    try:
+        agent_task = AgentTask(
+            organization_id=org_id,
+            agent_type="image_gen",
+            status=task_status,
+            input_payload={
+                "batch_name": gallery_name,
+                "product_description": body.product_description,
+                "preset_id": body.preset_id,
+                "total_requested": total_images,
+            },
+            output_payload={
+                "batch_id": batch.id,
+                "total_generated": new_generated,
+                "total_failed": new_failed,
+                "credits_consumed": new_credits,
+                "content": f"Batch '{gallery_name}': {new_generated} imágenes generadas"
+                           + (f", {new_failed} fallidas" if new_failed > 0 else ""),
+            },
+            error_message=task_error,
+            tokens_used=0,
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+        )
+        session.add(agent_task)
+    except Exception as e:
+        logger.error(f"Error registering batch task: {e}")
+
     await session.commit()
 
-    # Recargar batch con creativos
-    stmt = (
-        select(CreativeBatch)
-        .options(selectinload(CreativeBatch.creatives))
-        .where(CreativeBatch.id == batch.id)
-    )
+    # Recargar con creativos
+    stmt = select(CreativeBatch).options(selectinload(CreativeBatch.creatives)).where(CreativeBatch.id == batch.id)
     result = await session.execute(stmt)
     batch = result.scalar_one()
 
     return CreativeBatchResponse.model_validate(batch)
 
+
+# ── List galleries ───────────────────────────────────────────────────────────
 
 @router.get("", response_model=CreativeBatchListResponse)
 async def list_batches(
@@ -149,12 +287,10 @@ async def list_batches(
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_session),
 ):
-    """Lista todos los batches de la organización."""
     stmt = (
         select(CreativeBatch)
         .options(selectinload(CreativeBatch.creatives))
-        .where(CreativeBatch.organization_id == org_id)
-        .where(CreativeBatch.deleted_at.is_(None))
+        .where(CreativeBatch.organization_id == org_id, CreativeBatch.deleted_at.is_(None))
         .order_by(CreativeBatch.created_at.desc())
     )
     result = await session.execute(stmt)
@@ -162,27 +298,22 @@ async def list_batches(
     return CreativeBatchListResponse(batches=[CreativeBatchResponse.model_validate(b) for b in batches])
 
 
+# ── Delete gallery ───────────────────────────────────────────────────────────
+
 @router.delete("/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_batch(
     batch_id: str,
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_session),
 ):
-    """Elimina un batch y todos sus creativos (S3 + BD)."""
     from infra.tools.s3_client import delete_s3_object
 
-    stmt = (
-        select(CreativeBatch)
-        .options(selectinload(CreativeBatch.creatives))
-        .where(CreativeBatch.id == batch_id)
-    )
+    stmt = select(CreativeBatch).options(selectinload(CreativeBatch.creatives)).where(CreativeBatch.id == batch_id)
     result = await session.execute(stmt)
     batch = result.scalar_one_or_none()
-
     if not batch:
-        raise HTTPException(status_code=404, detail="Batch no encontrado")
+        raise HTTPException(status_code=404, detail="Galería no encontrada")
 
-    # Eliminar creativos de S3
     for creative in batch.creatives:
         s3_key = creative.s3_key
         if not s3_key and creative.file_url and ".amazonaws.com/" in creative.file_url:
@@ -193,6 +324,17 @@ async def delete_batch(
         if s3_key:
             await delete_s3_object(s3_key)
 
-    # Hard delete batch (cascade elimina creativos)
     await session.delete(batch)
     await session.commit()
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+async def _find_batch_by_name(session: AsyncSession, org_id: str, name: str) -> CreativeBatch | None:
+    stmt = select(CreativeBatch).where(
+        CreativeBatch.organization_id == org_id,
+        CreativeBatch.name == name,
+        CreativeBatch.deleted_at.is_(None),
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()

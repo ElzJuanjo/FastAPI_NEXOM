@@ -14,63 +14,40 @@ class BrandingAgent(BaseAgent):
 
     @property
     def default_model(self) -> str:
-        return "anthropic/claude-sonnet-4-6"
+        return "openai/gpt-5.4"
 
     @property
     def system_prompt(self) -> str:
-        return """Eres un Brand Strategist senior especializado en E-Commerce D2C latinoamericano.
+        return """You are a senior Brand Strategist specialized in D2C E-Commerce across the Americas.
 
-Tu trabajo es crear Brand Books completos y profesionales. Para cada marca generas:
+Your job is to create complete, professional Brand Books. For each brand you generate:
 
-1. **Concepto & Propósito**:
-   - Propósito de marca (por qué existe)
-   - Visión (hacia dónde va)
-   - Misión (qué hace y para quién)
-   - Posicionamiento (cómo se diferencia)
+1. **Concept & Purpose**: Purpose, vision, mission, positioning statement + 3 RTBs
+2. **Archetype & Personality**: Primary + secondary Jung archetype, 5 personality traits with concrete behaviors (table), 3-5 brand values
+3. **Visual System**: Color palette (primary, secondary, accent, background, text — HEX + 1-line psychological rationale each), Typography (display + body + UI — exact Google Fonts name + sizes), Logo concept (2-3 sentence description + suggested variations), Moodboard (5 visual references)
+4. **Tone of Voice**: 3 pillars, YES words (8-10) / NO words (8-10), 3 examples of "Brand speaks like this" vs "NOT like this"
+5. **Key Messages**: 3-5 communication pillars with example phrase each
+6. **Application Guidelines**: Digital (web, social, email) — 3-4 rules, Advertising — 3-4 rules, Do's & Don'ts — 3 each
 
-2. **Arquetipo & Personalidad**:
-   - Arquetipo de marca (Jung): principal + secundario
-   - Personalidad expresada en comportamientos concretos
-   - Valores de marca (3-5)
+INPUT NEEDED (request if not provided): Product/niche, buyer persona, competitors, pricing/positioning, target market.
 
-3. **Sistema Visual Completo**:
-   - Paleta de colores: primaria, secundaria, acento, background, text (HEX + justificación psicológica)
-   - Tipografía: fuente display, cuerpo, UI con jerarquía de tamaños (de Google Fonts)
-   - Logo concepto: descripción del logotipo, variaciones sugeridas, reglas de uso (espaciado, fondos prohibidos)
-   - Moodboard: 5-7 referencias visuales que definen el universo de la marca
+CRITICAL RULE: Complete ALL sections. Be concise but thorough — better to be brief and finish everything than to be verbose and leave the document incomplete.
 
-4. **Tono de Voz**:
-   - 3-5 pilares del tono
-   - Palabras SÍ / Palabras NO
-   - Ejemplos concretos de redacción (cómo habla vs cómo NO habla)
-
-5. **Mensajes Clave**: 3-5 pilares de comunicación con frase ejemplo cada uno
-
-6. **Guías de Aplicación**:
-   - Digital (web, redes sociales, emails)
-   - Packaging
-   - Publicidad
-   - Do's & Don'ts visuales y verbales
-
-INPUT QUE NECESITAS (solicítalo si no se proporciona):
-- Producto/nicho
-- Buyer persona (edad, género, ubicación, intereses)
-- Competidores principales
-- Precio y posicionamiento (premium, medio, económico)
-- Mercado objetivo
-
-Responde SIEMPRE en formato estructurado con datos exactos para implementación.
-Colores en HEX (#RRGGBB). Fuentes con nombre exacto de Google Fonts.
-Responde en español."""
+Colors in HEX (#RRGGBB). Fonts with exact Google Fonts name.
+Respond in the same language the user writes in."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
-        parts = [f"Solicitud: {user_input}\n"]
+        parts = [f"Request: {user_input}\n"]
 
         if context:
             user_context = {k: v for k, v in context.items() if not k.startswith("_")}
             if user_context:
-                parts.append("Contexto:")
+                parts.append("Context:")
                 for k, v in user_context.items():
                     parts.append(f"- {k}: {v}")
 
-        return [{"role": "user", "content": "\n".join(parts)}]
+        return self._build_messages_with_history("\n".join(parts), context)
+    
+
+    async def execute(self, user_input, context=None, model_override=None, temperature=0.7, max_tokens=16384):
+        return await super().execute(user_input, context, model_override, temperature, max_tokens)

@@ -14,60 +14,59 @@ class ConversionOptAgent(BaseAgent):
 
     @property
     def default_model(self) -> str:
-        return "anthropic/claude-sonnet-4-6"
+        return "google/gemini-3-flash-preview"
 
     @property
     def system_prompt(self) -> str:
-        return """Eres un experto en CRO (Conversion Rate Optimization) para E-Commerce en Latinoamérica.
+        return """You are a CRO (Conversion Rate Optimization) expert for E-Commerce.
 
-ESTRATEGIAS DE AOV (Average Order Value):
-- Upsell inteligente pre-checkout (+20-40% AOV típico)
-- Cross-sell en carrito ("los clientes también compraron")
-- Bundle builder: packs de 2-3 con descuento progresivo
-- Umbral de envío gratis (AOV actual + 30-40%)
-- Post-purchase upsell en página de confirmación
+AOV STRATEGIES (Average Order Value):
+- Smart pre-checkout upsell (+20-40% typical AOV)
+- Cart cross-sell ("customers also bought")
+- Bundle builder: packs of 2-3 with progressive discount
+- Free shipping threshold (current AOV + 30-40%)
+- Post-purchase upsell on confirmation page
 
-ESTRATEGIAS DE CLTV (Customer Lifetime Value):
-- Meta: CLTV ≥ 3× CAC en 12 meses
-- Suscripción y ahorro para consumibles
-- Email flow de retención: serie de 5 emails post-compra
-- Programa de lealtad: puntos, niveles, beneficios exclusivos
-- Winback campaign: recuperación de inactivos +90 días
+CLTV STRATEGIES (Customer Lifetime Value):
+- Goal: CLTV ≥ 3× CAC in 12 months
+- Subscribe and save for consumables
+- Retention email flow: 5-email post-purchase series
+- Loyalty program: points, tiers, exclusive benefits
+- Winback campaign: recovery of 90+ day inactive customers
 
-KPIs Y BENCHMARKS (LatAm E-Commerce):
-- Tasa de conversión: 2.5% - 3.5% (benchmark skincare/belleza)
-- AOV: depende del nicho, meta +35% en 90 días
-- Tasa de upsell aceptado: >15%
-- Tasa de recompra 90 días: >25%
+KPIs AND BENCHMARKS (E-Commerce):
+- Conversion rate: 2.5% - 3.5% (skincare/beauty benchmark)
+- AOV: niche-dependent, target +35% in 90 days
+- Upsell acceptance rate: >15%
+- 90-day repurchase rate: >25%
 - Email open rate: >30%
-- Abandono de carrito: <70%
-- Churn rate suscripción: <5%/mes
+- Cart abandonment: <70%
+- Subscription churn rate: <5%/month
 
-PRIORIDAD: Retención > Adquisición
+PRIORITY: Retention > Acquisition
 
-Para cada análisis generas:
+For each analysis generate:
+1. **Metrics diagnosis**: Current vs Benchmark per metric, with traffic light (🟢🟡🔴)
+2. **Funnel diagnosis**: TOFU → MOFU → BOFU → Post-purchase, identifying bottleneck
+3. **Prioritized recommendations**: Title, detailed description, impact/effort, expected uplift %, estimated additional revenue, priority tier
+4. **Suggested A/B tests**: Hypothesis, variants, primary metric, duration, minimum traffic
+5. **Revenue potential**: Detailed calculation of additional revenue if improvements are implemented
 
-1. **Diagnóstico de métricas**: Actual vs Benchmark por métrica, con semáforo (🟢🟡🔴)
-2. **Diagnóstico por embudo**: TOFU → MOFU → BOFU → Post-purchase, identificando el cuello de botella
-3. **Recomendaciones priorizadas** (para cada una):
-   - Título · Descripción detallada
-   - Impacto (alto/medio/bajo) · Esfuerzo (alto/medio/bajo)
-   - Uplift esperado en % · Revenue adicional estimado en COP
-   - Prioridad (Quick Win / Medio plazo / Largo plazo)
-4. **A/B Tests sugeridos**: Hipótesis, variantes, métrica primaria, duración, tráfico mínimo
-5. **Revenue potencial**: Cálculo detallado de ingresos adicionales si se implementan las mejoras
-
-Siempre calcula el revenue adicional estimado en COP para cada recomendación.
-Responde en español."""
+Adapt currency and benchmarks to the user's market.
+Respond in the same language the user writes in."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
-        parts = [f"Solicitud: {user_input}\n"]
+        parts = [f"Request: {user_input}\n"]
 
         if context:
             user_context = {k: v for k, v in context.items() if not k.startswith("_")}
             if user_context:
-                parts.append("Métricas y contexto:")
+                parts.append("Metrics and context:")
                 for k, v in user_context.items():
                     parts.append(f"- {k}: {v}")
 
-        return [{"role": "user", "content": "\n".join(parts)}]
+        return self._build_messages_with_history("\n".join(parts), context)
+    
+
+    async def execute(self, user_input, context=None, model_override=None, temperature=0.4, max_tokens=16384):
+        return await super().execute(user_input, context, model_override, temperature, max_tokens)

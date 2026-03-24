@@ -1,6 +1,6 @@
 """
 Nodo Router — un LLM decide qué agente debe responder.
-Es el cerebro del Nivel 1.
+Recibe historial conversacional para decisiones contextuales inteligentes.
 """
 
 from __future__ import annotations
@@ -10,85 +10,116 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from infra.config.llm_factory import get_chat_model
-from app.agents.agent_registry import list_available_agents
 from .state import OrchestratorState
 
 
-ROUTER_SYSTEM_PROMPT = """Eres el orquestador de NexOS, una plataforma de E-Commerce con IA.
+ROUTER_SYSTEM_PROMPT = """You are the intelligent orchestrator of NexOS, an AI-powered E-Commerce automation platform.
 
-Tu ÚNICO trabajo es decidir qué agente debe manejar la solicitud del usuario.
+Your ONLY job is to analyze the user's request (considering conversation history) and decide which specialized agent should respond.
 
-Agentes disponibles:
-- general_assistant: Para saludos, preguntas generales, solicitudes ambiguas, explicar el ciclo completo (Producto → Dropi → Branding → Copy → Imágenes → Anuncios → Landing → Tienda → Conversión), o cuando el usuario no tiene claro qué quiere hacer. SIEMPRE usa este agente si la solicitud es vaga, es un saludo, o no encaja claramente con otro agente.
-- product_search: Buscar productos en el mercado, analizar nichos, tendencias, precios. Usa datos reales de MercadoLibre, Google Shopping, AliExpress, Amazon, Temu.
-- dropi_connector: Buscar productos en el catálogo de Dropi, consultar stock, precios de proveedor, crear órdenes de dropshipping.
-- branding: Crear identidad de marca (nombre, logo, paleta de colores, tipografía, tono de voz, mensajes clave).
-- copywriting: Generar textos de venta (headlines, descripciones, emails, anuncios, CTAs).
-- ads: Crear campañas de anuncios para Meta Ads, Google Ads, TikTok Ads.
-- landing_page: Diseñar y generar landing pages de venta.
-- image_gen: Generar imágenes de producto, creativos visuales para anuncios.
-- video_gen: Generar videos de producto, reels, contenido para redes.
-- store_dev: Desarrollar y configurar tienda online.
-- conversion_opt: Analizar métricas de conversión y recomendar optimizaciones.
+AVAILABLE AGENTS:
+- general_assistant: Greetings, general questions, guiding the user, explaining capabilities, ambiguous requests.
+- product_search: Search products in the market, analyze niches, trends, prices. Real data from MercadoLibre, Google Shopping, AliExpress, Amazon, Temu.
+- dropi_connector: Search/sync products in Dropi, check stock, supplier prices, dropshipping operations.
+- branding: Create brand identity (name, logo, color palette, typography, tone, key messages, brand book).
+- copywriting: Generate sales copy (headlines, descriptions, emails, ads, CTAs, social posts, scripts).
+- ads: Create ad campaigns for Meta Ads, Google Ads, TikTok Ads.
+- landing_page: Design and generate high-conversion sales landing pages.
+- image_gen: Generate product images, visual creatives for ads.
+- store_dev: Develop and configure online stores.
+- conversion_opt: Analyze conversion metrics and recommend optimizations (AOV, CLTV, CRO, funnel).
 
-REGLAS DE DECISIÓN:
-1. Si es un saludo, pregunta general o solicitud ambigua → general_assistant
-2. Si el usuario menciona explícitamente buscar/encontrar productos en el mercado → product_search
-3. Si menciona Dropi, dropshipping, catálogo de proveedor → dropi_connector
-4. Si menciona marca, identidad, logo, colores → branding
-5. Si menciona textos, copy, headlines, anuncios escritos → copywriting
-6. Si menciona campaña de anuncios, Meta Ads, Google Ads → ads
-7. Si menciona landing page, página de venta → landing_page
-8. Si menciona imagen, foto, creativo visual → image_gen
-9. Si menciona video, reel → video_gen
-10. Si menciona tienda, store, configurar tienda → store_dev
-11. Si menciona conversión, métricas, AOV, abandono → conversion_opt
-12. Si la solicitud necesita MÚLTIPLES agentes, indica cuáles.
+DECISION RULES (in strict priority order):
 
-Responde SOLO con un JSON válido, sin markdown ni explicación:
-{"agent": "nombre_del_agente", "reasoning": "razón breve"}
+1. GRATITUDE AND CLOSURES: If the message is a simple thank you, farewell, or acknowledgment ("thanks", "gracias", "thank you", "muchas gracias", "ok gracias", "perfecto gracias", "genial", "excelente", "great", "awesome", "bye", "chao", "adiós", "goodbye", "listo", "👍"), ALWAYS route to general_assistant. These are social messages, not task requests.
 
-Si la solicitud necesita MÚLTIPLES agentes en secuencia:
-{"agent": "multi", "agents": ["agente1", "agente2"], "reasoning": "razón"}
+2. NUMBERED OPTION SELECTION: If the user responds with ONLY a number ("1", "2", "3") or ordinal ("the first", "the second", "el primero", "la segunda", "la tercera"), the user is selecting from a numbered list in the LAST assistant message. You MUST read that list, identify what each option refers to, and route to the matching agent:
+   - Option mentions copy/headlines/descriptions/emails/textos/anuncios escritos → copywriting
+   - Option mentions ads/campaign/Meta Ads/Google Ads/TikTok/creativos para ads → ads
+   - Option mentions landing page/página de venta/conversión alta → landing_page
+   - Option mentions store/tienda/Shopify/Dropi integration/configurar → store_dev
+   - Option mentions brand/marca/identidad/brand book/logo/colores → branding
+   - Option mentions image/imagen/foto/creativo visual/imágenes → image_gen
+   - Option mentions product search/productos ganadores/búsqueda/mercado/nicho → product_search
+   - Option mentions Dropi/sync/stock/dropshipping/proveedor → dropi_connector
+   - Option mentions conversion/métricas/AOV/CRO/optimización → conversion_opt
+   A number response is ALWAYS an option selection from the previous message. NEVER treat it as a generic continuation.
+
+3. CONVERSATION CONTEXT IS KING: If the history shows the user was working on a specific topic and the new message is a continuation ("yes", "let's go", "continue", "do it", "sí", "dale", "continuemos", "hazlo", "sigue", "continúa", "continue generating", "keep going", "pick up where you left off"), use the agent from the active topic. NEVER fall back to general_assistant for continuations.
+
+4. NATURAL TRANSITIONS: If the assistant suggested a next step and the user accepts it (not by number, but by describing it), switch to the corresponding agent:
+   - Brand book / brand identity / logo / colors → branding
+   - Generate images / creatives / visual content → image_gen
+   - Sync with Dropi / dropshipping / supplier → dropi_connector
+   - Write copy / texts / email / headlines → copywriting
+   - Ad campaign / Meta Ads / Google Ads / budget → ads
+   - Landing page / sales page → landing_page
+   - Configure store / online store → store_dev
+   - Conversion analysis / metrics / AOV / funnel → conversion_opt
+   - Search products / market / niche / winning products → product_search
+
+5. EXPLICIT INTENT: If the message clearly and directly mentions a domain keyword, that agent wins regardless of history.
+
+6. GENERAL_ASSISTANT ONLY WHEN: It's an initial greeting with no history, a question about NexOS capabilities, or there is genuinely no prior context and no clear intent. Use general_assistant as an absolute LAST resort.
+
+7. LANGUAGE IS IRRELEVANT: The user may write in Spanish, English, Portuguese, or any language. Route based on intent, never on language.
+
+Respond ONLY with valid JSON, no markdown, no explanation:
+{"agent": "agent_name", "reasoning": "brief reason max 20 words"}
 """
 
 
 async def router_node(state: OrchestratorState) -> dict:
     """
-    Analiza el input del usuario y decide qué agente debe responder.
-    Retorna el estado actualizado con selected_agent.
+    Analiza el input del usuario CON historial conversacional y decide qué agente usar.
     """
-    llm = get_chat_model(model="openai/gpt-4.1-mini", temperature=0.1, max_tokens=200)
+    llm = get_chat_model()
+
+    # Construir contexto con historial (últimos 10 mensajes)
+    conversation_history = state.get("context", {}).get("conversation_history", [])
+    history_text = ""
+    if conversation_history:
+        recent = conversation_history[-10:]
+        history_parts = []
+
+        # Find the last assistant message index
+        last_assistant_idx = -1
+        for i in range(len(recent) - 1, -1, -1):
+            if recent[i].get("role") == "assistant":
+                last_assistant_idx = i
+                break
+
+        for i, msg in enumerate(recent):
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            # Give the last assistant message more space for numbered options
+            max_len = 800 if i == last_assistant_idx else 300
+            if len(content) > max_len:
+                content = content[:max_len] + "..."
+            history_parts.append(f"[{role}]: {content}")
+
+        history_text = "\n".join(history_parts)
+
+    # Construir prompt
+    router_input = f"Current user message: {state['user_input']}"
+    if history_text:
+        router_input = f"CONVERSATION HISTORY:\n{history_text}\n\n---\n\n{router_input}"
 
     messages = [
         SystemMessage(content=ROUTER_SYSTEM_PROMPT),
-        HumanMessage(content=f"Solicitud del usuario: {state['user_input']}\n\nContexto adicional: {json.dumps(state.get('context', {}), ensure_ascii=False)}"),
+        HumanMessage(content=router_input),
     ]
 
     response = await llm.ainvoke(messages)
     content = response.content.strip()
 
-    # Parsear respuesta JSON del router
     try:
-        # Limpiar posibles backticks markdown
         if content.startswith("```"):
             content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
         decision = json.loads(content)
-        selected = decision.get("agent", "none")
+        selected = decision.get("agent", "general_assistant")
         reasoning = decision.get("reasoning", "")
-
-        if selected == "multi":
-            # Para multi-agente, tomamos el primero y guardamos la lista
-            agents_list = decision.get("agents", [])
-            return {
-                "selected_agent": agents_list[0] if agents_list else "none",
-                "context": {
-                    **state.get("context", {}),
-                    "_router_reasoning": reasoning,
-                    "_planned_agents": agents_list,
-                },
-            }
 
         return {
             "selected_agent": selected,
@@ -100,6 +131,9 @@ async def router_node(state: OrchestratorState) -> dict:
 
     except (json.JSONDecodeError, KeyError):
         return {
-            "selected_agent": "none",
-            "error": f"Router no pudo parsear la decisión: {content}",
+            "selected_agent": "general_assistant",
+            "context": {
+                **state.get("context", {}),
+                "_router_reasoning": f"Error parsing, fallback: {content[:100]}",
+            },
         }

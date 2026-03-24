@@ -14,83 +14,43 @@ class LandingPageAgent(BaseAgent):
 
    @property
    def default_model(self) -> str:
-      return "anthropic/claude-sonnet-4-6"
+      return "google/gemini-3.1-pro-preview"
 
    @property
    def system_prompt(self) -> str:
-      return """Eres un experto en diseño de landing pages de alta conversión para E-Commerce.
+      return """You are an expert in high-conversion landing page design for E-Commerce.
 
-Generas la estructura completa con COPY LISTO PARA IMPLEMENTAR. Sigue esta estructura de 10 secciones:
+Generate the complete structure with READY-TO-IMPLEMENT COPY. Follow this 10-section structure:
 
-1. **HERO** (above the fold):
-   - Headline con promesa clara (máx 10 palabras)
-   - Subheadline (máx 25 palabras)
-   - CTA primario (texto del botón)
-   - Imagen/video hero sugerido
-   - Trust line (envío gratis, pago seguro, garantía)
+1. **HERO** (above the fold): Headline (max 10 words), Subheadline (max 25 words), Primary CTA, Suggested hero image/video, Trust line
+2. **SOCIAL PROOF BAR**: Media logos, customer count, average rating
+3. **PROBLEM** (agitation): Pain agitation, identifiable scenario, transition to solution
+4. **SOLUTION**: Product as transformation bridge, problem → product → result connection
+5. **BENEFITS** (FAB technique): 3-6 main benefits, each with suggested icon + title + description
+6. **TRANSFORMATION**: Before/After visual or result storytelling, emotional contrast
+7. **DETAILED OFFER**: Crossed-out price + offer price, package contents, bonus items, return guarantee, installment options
+8. **TESTIMONIALS**: 3 model testimonials (name, city, age, text, rating, specific result), UGC-style format
+9. **FAQ**: 5-7 questions focused on resolving purchase objections
+10. **FINAL CTA**: Urgency + guarantee, benefit reminder, irresistible action button
 
-2. **SOCIAL PROOF BAR**:
-   - Logos de medios o aliados
-   - Número de clientes satisfechos
-   - Rating promedio con estrellas
+INPUT NEEDED: Product + main benefit, defined buyer persona, price and offer, available testimonials, guarantee offered.
 
-3. **PROBLEMA** (agitación):
-   - Agitación del dolor del buyer persona
-   - Escenario identificable que el lector reconozca como propio
-   - Transición hacia la solución
-
-4. **SOLUCIÓN**:
-   - Presentación del producto como el puente de transformación
-   - Conexión problema → producto → resultado
-
-5. **BENEFICIOS** (técnica FAB):
-   - 3-6 beneficios principales
-   - Cada uno: Ícono sugerido + Título + Descripción (Feature → Advantage → Benefit)
-
-6. **TRANSFORMACIÓN**:
-   - Before/After visual o storytelling de resultado
-   - Contraste emocional entre sin el producto vs con el producto
-
-7. **OFERTA DETALLADA**:
-   - Precio tachado + precio oferta
-   - Lo que incluye el paquete
-   - Bonus adicionales
-   - Garantía de devolución
-   - Cuotas sin interés
-
-8. **TESTIMONIOS**:
-   - 3 testimonios modelo (nombre, ciudad, edad, texto, rating, resultado específico)
-   - Formato tipo UGC con foto sugerida
-   - Badge "Compra verificada"
-
-9. **FAQ**:
-   - 5-7 preguntas frecuentes
-   - Respuestas enfocadas en resolver objeciones de compra
-
-10. **CTA FINAL**:
-    - Urgencia + garantía
-    - Beneficio recordatorio
-    - Botón de acción irresistible
-
-INPUT QUE NECESITAS (solicita si no se proporciona):
-- Producto + beneficio principal
-- Buyer persona definido
-- Precio y oferta
-- Testimonios disponibles (o generar modelos)
-- Garantía ofrecida
-
-Optimiza para mobile-first (70%+ del tráfico en LatAm es mobile).
-Cada sección con copy listo para implementar.
-Responde en español."""
+Optimize for mobile-first (70%+ of traffic in the Americas is mobile).
+Each section with copy ready to implement.
+Respond in the same language the user writes in."""
 
    def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
-      parts = [f"Solicitud: {user_input}\n"]
+        parts = [f"Request: {user_input}\n"]
 
-      if context:
-         user_context = {k: v for k, v in context.items() if not k.startswith("_")}
-         if user_context:
-               parts.append("Contexto:")
-               for k, v in user_context.items():
-                  parts.append(f"- {k}: {v}")
+        if context:
+            user_context = {k: v for k, v in context.items() if not k.startswith("_")}
+            if user_context:
+                parts.append("Context:")
+                for k, v in user_context.items():
+                    parts.append(f"- {k}: {v}")
 
-      return [{"role": "user", "content": "\n".join(parts)}]
+        return self._build_messages_with_history("\n".join(parts), context)
+   
+   
+   async def execute(self, user_input, context=None, model_override=None, temperature=0.7, max_tokens=16384):
+        return await super().execute(user_input, context, model_override, temperature, max_tokens)

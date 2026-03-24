@@ -7,10 +7,10 @@ AgentTask registra cada ejecución con su agent_type y organization_id.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 
 from sqlalchemy import (
-    DateTime, Enum, ForeignKey, Integer, Numeric, String, Text,
+    DateTime, Enum, ForeignKey, Integer, Text,
     Index,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -29,8 +29,7 @@ class AgentTask(UUIDPk, TimestampMixin, Base):
     input_payload:   Mapped[Optional[dict]]     = mapped_column(JSONB)
     output_payload:  Mapped[Optional[dict]]     = mapped_column(JSONB)
     error_message:   Mapped[Optional[str]]      = mapped_column(Text)
-    tokens_used:     Mapped[Optional[int]]      = mapped_column(Integer)
-    cost_usd:        Mapped[Optional[float]]    = mapped_column(Numeric(10, 6))
+    credits_used:    Mapped[Optional[int]]      = mapped_column(Integer)
     started_at:      Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     finished_at:     Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     duration_ms:     Mapped[Optional[int]]      = mapped_column(Integer)

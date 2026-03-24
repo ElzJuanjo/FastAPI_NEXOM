@@ -15,6 +15,15 @@ from infra.tools.ecommerce_scraper import ecommerce_scraper
 from app.agents.scoring import score_products
 
 
+def _num(value, default: float = 0) -> float:
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+    
+
 class ProductSearchAgent(BaseAgent):
 
     @property
@@ -23,51 +32,41 @@ class ProductSearchAgent(BaseAgent):
 
     @property
     def default_model(self) -> str:
-        return "openai/gpt-4.1"
+        return "google/gemini-3-flash-preview"
 
     @property
     def system_prompt(self) -> str:
-        return """Eres un analista experto en E-Commerce para Latinoamérica, especializado en identificar productos ganadores para dropshipping.
+        return """You are an expert E-Commerce analyst specialized in identifying winning products for dropshipping.
 
-Se te proporcionan datos REALES de productos obtenidos de múltiples fuentes:
-- MercadoLibre y Google Shopping (fuentes primarias — mayor volumen)
-- AliExpress, Amazon, Temu, Shopee (fuentes secundarias — validación)
+You are provided REAL product data from multiple sources:
+- MercadoLibre and Google Shopping (primary sources — highest volume)
+- AliExpress, Amazon, Temu, Shopee (secondary sources — validation)
 
-SISTEMA DE SCORING — Calcula para cada producto:
-SCORE_TOTAL = (Ventas × 0.30) + (Margen × 0.25) + (Tendencia × 0.20) + (Competencia_inv × 0.15) + (Rating × 0.10)
-Escala: 0-100. UMBRAL GANADOR: Score ≥ 75/100
+SCORING SYSTEM — Calculate for each product:
+SCORE_TOTAL = (Sales × 0.30) + (Margin × 0.25) + (Trend × 0.20) + (Competition_inv × 0.15) + (Rating × 0.10)
+Scale: 0-100. WINNER THRESHOLD: Score ≥ 75/100
 
-CRITERIOS DE PRODUCTO GANADOR:
-- +200 ventas/mes estimadas
-- Margen >40% (precio retail vs precio proveedor)
-- Rating >4.2 estrellas
-- Crecimiento >15% mes a mes (MoM)
+WINNING PRODUCT CRITERIA:
+- 200+ estimated monthly sales
+- Margin >40% (retail price vs supplier price)
+- Rating >4.2 stars
+- Growth >15% month over month (MoM)
 
-CATEGORÍAS PRIORITARIAS:
-1. Maternidad & Bebé
-2. Hogar & Organización
-3. Estética & Cuidado personal
-4. Relojería & Accesorios
-5. Alimentación saludable
-6. Mascotas
-7. Tecnología accesoria
-8. Deporte & Bienestar
+CRITICAL RULES:
+- ONLY use the data provided, do NOT invent products or prices
+- Always cite the source (platform)
+- Compare prices between supplier (AliExpress/Temu) and retail (ML/Amazon/Google Shopping)
+- If insufficient data from a source, state it clearly
 
-REGLAS CRÍTICAS:
-- SOLO usa los datos proporcionados, NO inventes productos ni precios.
-- Siempre cita la fuente (plataforma).
-- Compara precios entre proveedor (AliExpress/Temu) y retail (ML/Amazon/Google Shopping).
-- Si no hay suficientes datos de alguna fuente, indícalo claramente.
+RESPONSE FORMAT:
+1. SCORING TABLE: Product | Score | Est. Sales | Margin | Trend | Competition | Rating | Verdict
+2. TOP 3 WINNING PRODUCTS: Those exceeding Score ≥ 75 with justification
+3. ARBITRAGE ANALYSIS: Supplier vs retail pricing, cross-platform opportunities
+4. COMPETITION ANALYSIS: Saturation level per product
+5. RECOMMENDATIONS: Prioritized concrete actions
+6. ALERTS: Products to avoid and why
 
-FORMATO DE RESPUESTA:
-1. TABLA DE SCORING: Producto | Score | Ventas est. | Margen | Tendencia | Competencia | Rating | Veredicto
-2. TOP 3 PRODUCTOS GANADORES: Los que superen Score ≥ 75 con justificación
-3. ANÁLISIS DE ARBITRAJE: Precio proveedor vs retail, oportunidades entre plataformas
-4. ANÁLISIS DE COMPETENCIA: Nivel de saturación por producto
-5. RECOMENDACIONES: Acciones concretas priorizadas
-6. ALERTAS: Productos a evitar y por qué
-
-Responde en español."""
+Respond in the same language the user writes in."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         """Override: incluye los datos scrapeados con scoring en el mensaje."""
@@ -92,14 +91,14 @@ Responde en español."""
             for p in ml_data:
                 all_products.append({
                     "name": p.get("name", ""),
-                    "price": p.get("price", 0),
+                    "price": _num(p.get("price")),
                     "currency": p.get("currency", "COP"),
                     "source": "MercadoLibre",
-                    "monthly_sales": p.get("sold_quantity", 0),
-                    "margin_pct": 0,  # se calcula si hay precio proveedor
+                    "monthly_sales": _num(p.get("sold_quantity")),
+                    "margin_pct": 0,
                     "trend_growth_pct": 0,
                     "competition_level": 5,
-                    "rating": p.get("rating", 0),
+                    "rating": _num(p.get("rating")),
                     "seller": p.get("seller", "N/A"),
                     "free_shipping": p.get("free_shipping", False),
                     "url": p.get("url", ""),
@@ -110,14 +109,14 @@ Responde en español."""
             for p in gs_data:
                 all_products.append({
                     "name": p.get("name", ""),
-                    "price": p.get("price", 0),
+                    "price": _num(p.get("price")),
                     "currency": p.get("currency", "COP"),
-                    "source": "Google Shopping",
-                    "monthly_sales": 0,
+                    "source": "MercadoLibre",
+                    "monthly_sales": _num(p.get("sold_quantity")),
                     "margin_pct": 0,
                     "trend_growth_pct": 0,
                     "competition_level": 5,
-                    "rating": p.get("rating", 0),
+                    "rating": _num(p.get("rating")),
                     "seller": p.get("seller", "N/A"),
                     "url": p.get("url", ""),
                     "reviews_count": p.get("reviews_count", 0),
@@ -128,14 +127,14 @@ Responde en español."""
                 for p in source_data:
                     all_products.append({
                         "name": p.get("name", ""),
-                        "price": p.get("price", 0),
-                        "currency": p.get("currency", "USD"),
-                        "source": source_key.capitalize(),
-                        "monthly_sales": 0,
+                        "price": _num(p.get("price")),
+                        "currency": p.get("currency", "COP"),
+                        "source": "MercadoLibre",
+                        "monthly_sales": _num(p.get("sold_quantity")),
                         "margin_pct": 0,
                         "trend_growth_pct": 0,
                         "competition_level": 5,
-                        "rating": p.get("rating", 0),
+                        "rating": _num(p.get("rating")),
                         "seller": p.get("seller", "N/A"),
                         "url": p.get("url", ""),
                         "reviews_count": p.get("reviews_count", 0),
@@ -156,7 +155,7 @@ Responde en español."""
                     parts.append(
                         f"{i}. {p.get('score_label', '')} {p['name']}\n"
                         f"   Fuente: {p.get('source', 'N/A')}\n"
-                        f"   Precio: {p.get('currency', '')} {p.get('price', 0):,.0f}\n"
+                        f"   Precio: {p.get('currency', '')} {_num(p.get('price')):,.0f}\n"
                         f"   Score Total: {p.get('score_total', 0)}/100\n"
                         f"   Desglose → Ventas: {p.get('score_breakdown', {}).get('ventas', 0)} | "
                         f"Margen: {p.get('score_breakdown', {}).get('margen', 0)} | "
@@ -183,15 +182,15 @@ Responde en español."""
                 "Responde con tu conocimiento pero indica claramente que los datos NO están verificados en tiempo real."
             )
 
-        return [{"role": "user", "content": "\n".join(parts)}]
+        return self._build_messages_with_history("\n".join(parts), context)
 
     async def execute(
         self,
         user_input: str,
         context: dict | None = None,
         model_override: str | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
+        temperature: float = 0.4,
+        max_tokens: int = 16384,
     ) -> dict:
         """
         Override: primero scrapea, luego analiza con LLM.

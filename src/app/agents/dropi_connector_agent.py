@@ -22,50 +22,37 @@ class DropiConnectorAgent(BaseAgent):
 
     @property
     def default_model(self) -> str:
-        return "openai/gpt-4.1"
+        return "openai/gpt-5.4-nano"
 
     @property
     def system_prompt(self) -> str:
-        return """Eres un asistente experto en la plataforma Dropi (dropshipping en Colombia/LatAm).
-Se te proporcionan datos REALES del catálogo de Dropi.
+        return """You are an expert assistant for the Dropi platform (dropshipping in Colombia/Latin America).
+You are provided REAL data from the Dropi catalog.
 
-Tu trabajo es:
-1. Presentar productos de Dropi de forma clara y atractiva.
-2. Calcular márgenes: precio Dropi (costo) vs precio sugerido (venta).
-3. Informar sobre disponibilidad de stock y variaciones.
-4. Asistir en la preparación de órdenes.
-5. Cotizar envíos cuando se proporcionen datos de ciudades.
-6. Evaluar proveedores por calidad y tiempo de entrega.
+Your job is:
+1. Present Dropi products clearly and attractively
+2. Calculate margins: Dropi price (cost) vs suggested price (retail)
+3. Report stock availability and variations
+4. Assist in order preparation
+5. Quote shipping when city data is provided
+6. Evaluate suppliers by quality and delivery time
 
-PARÁMETROS DE FILTRO AUTOMÁTICO:
-- Margen mínimo aceptable: 35%
-- Tiempo de entrega máximo: 15 días
-- Calificación mínima del proveedor: ≥4.0
-- Productos que no cumplan → marcar con ⚠️ y explicar por qué
+AUTOMATIC FILTER PARAMETERS:
+- Minimum acceptable margin: 35%
+- Maximum delivery time: 15 days
+- Minimum supplier rating: ≥4.0
+- Products that don't meet criteria → mark with ⚠️ and explain why
 
-FLUJO DE INTEGRACIÓN CON BÚSQUEDA:
-Cuando recibas contexto de un producto ganador (del agente de búsqueda):
-- Si existe en Dropi → presentar con datos completos + recomendar importación
-- Si no existe → alertar para búsqueda manual + sugerir alternativas similares
-- Sincronizar precio: calcular precio sugerido basado en margen objetivo (mín 35%)
+For each product show:
+- Name and description
+- Dropi price (your cost) and suggested price (retail)
+- Profit margin (in local currency and %)
+- Available stock by warehouse/variation
+- Supplier (store name)
+- Estimated delivery time
+- ⚠️ Alerts if low stock (<50 units) or insufficient margin
 
-Para cada producto muestra:
-- Nombre y descripción
-- Precio Dropi (tu costo) y Precio sugerido (venta)
-- Margen de ganancia (en COP y %)
-- Stock disponible por bodega/variación
-- Proveedor (nombre de tienda)
-- Tiempo estimado de entrega
-- ⚠️ Alertas si stock bajo (<50 unidades) o margen insuficiente
-
-Si el usuario quiere crear una orden, solicita:
-- Producto(s) y cantidad
-- Nombre del cliente
-- Teléfono
-- Ciudad de destino
-- Dirección completa
-
-Responde siempre en español. Sé directo y orientado a la acción."""
+Respond in the same language the user writes in. Be direct and action-oriented."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         dropi_data = context.get("_dropi_data", {}) if context else {}
@@ -125,21 +112,18 @@ Responde siempre en español. Sé directo y orientado a la acción."""
         if not products and not stock_info and not shipping_info and not order_result:
             parts.append("No se encontraron datos de Dropi para esta consulta. Responde con información general sobre Dropi.")
 
-        return [{"role": "user", "content": "\n".join(parts)}]
+        return self._build_messages_with_history("\n".join(parts), context)
 
     async def execute(
         self,
         user_input: str,
         context: dict | None = None,
         model_override: str | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 3000,
+        temperature: float = 0.4,
+        max_tokens: int = 16384,
     ) -> dict:
         context = context or {}
         dropi_data = {}
-
-        # Detectar intención y ejecutar acciones en Dropi
-        input_lower = user_input.lower()
 
         # Búsqueda de productos
         try:

@@ -28,6 +28,55 @@ async def create_creative(
     return CreativeResponse.model_validate(creative)
 
 
+@router.post("/from-url", response_model=CreativeResponse, status_code=status.HTTP_201_CREATED)
+async def create_creative_from_url(
+    body: dict,
+    org_id: str = Depends(get_current_org_id),
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Crea un creativo directamente desde una URL de S3 (sin re-subir)."""
+    from domain.entities.creative import Creative
+    from domain.entities.base import AssetStatus, AgentType
+
+    file_url = body.get("file_url")
+    if not file_url:
+        raise HTTPException(status_code=400, detail="file_url es requerido")
+
+    # Validar que no exista ya
+    from sqlalchemy import select
+    existing_stmt = select(Creative).where(
+        Creative.file_url == file_url,
+        Creative.organization_id == org_id,
+        Creative.deleted_at.is_(None),
+    )
+    existing_result = await session.execute(existing_stmt)
+    if existing_result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta imagen ya está en creativos")
+
+    # Extraer s3_key de la URL
+    s3_key = None
+    if ".amazonaws.com/" in file_url:
+        try:
+            s3_key = file_url.split(".amazonaws.com/", 1)[1]
+        except (IndexError, AttributeError):
+            pass
+
+    creative = Creative(
+        organization_id=org_id,
+        agent_type=AgentType.IMAGE_GEN,
+        status=AssetStatus.APPROVED,
+        file_url=file_url,
+        s3_key=s3_key,
+        generation_prompt=body.get("generation_prompt"),
+    )
+    session.add(creative)
+    await session.commit()
+    await session.refresh(creative)
+
+    return CreativeResponse.model_validate(creative)
+
+
 @router.get("", response_model=CreativeListResponse)
 async def list_creatives(
     product_id: str | None = Query(default=None),

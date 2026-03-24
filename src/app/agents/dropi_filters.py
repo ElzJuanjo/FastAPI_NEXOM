@@ -16,6 +16,16 @@ MIN_SUPPLIER_RATING = 4.0
 LOW_STOCK_THRESHOLD = 50
 
 
+def _num(value, default: float = 0) -> float:
+    """Convierte a número de forma segura. None y strings inválidos → default."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def calculate_margin(cost: float, suggested_price: float) -> dict:
     """Calcula margen absoluto y porcentual."""
     if cost <= 0:
@@ -38,9 +48,9 @@ def evaluate_product(product: dict) -> dict:
     - passes_filters: bool — cumple todos los criterios mínimos
     - quality_score: puntuación simple 0-100
     """
-    cost = product.get("price", 0)
-    suggested = product.get("suggested_price", 0)
-    stock = product.get("stock", 0)
+    cost = _num(product.get("price"), 0)
+    suggested = _num(product.get("suggested_price"), 0)
+    stock = _num(product.get("stock"), 0)
 
     margin = calculate_margin(cost, suggested)
     margin_pct = margin["margin_pct"]

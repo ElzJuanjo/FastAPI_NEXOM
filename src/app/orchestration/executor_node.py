@@ -1,6 +1,6 @@
 """
 Nodo Executor — ejecuta el agente seleccionado por el router.
-Usa los agentes existentes (BaseAgent subclasses) del registry.
+Pasa el historial conversacional al agente para que tenga contexto.
 """
 
 from __future__ import annotations
@@ -10,15 +10,12 @@ from .state import OrchestratorState
 
 
 async def executor_node(state: OrchestratorState) -> dict:
-    """
-    Ejecuta el agente seleccionado y retorna el resultado.
-    """
     agent_type = state.get("selected_agent")
 
     if not agent_type or agent_type == "none":
         return {
             "agent_output": {
-                "content": "No se identificó un agente adecuado para tu solicitud. ¿Puedes ser más específico?",
+                "content": "I couldn't identify the right agent for your request. Could you be more specific? / No se identificó un agente adecuado. ¿Puedes ser más específico?",
                 "model": "none",
                 "tokens_total": 0,
             },
@@ -30,7 +27,7 @@ async def executor_node(state: OrchestratorState) -> dict:
     if not agent:
         return {
             "agent_output": {
-                "content": f"El agente '{agent_type}' aún no está disponible. Los agentes activos son: product_search, dropi_connector.",
+                "content": f"The agent '{agent_type}' is not available yet. / El agente '{agent_type}' aún no está disponible.",
                 "model": "none",
                 "tokens_total": 0,
             },
@@ -38,11 +35,21 @@ async def executor_node(state: OrchestratorState) -> dict:
         }
 
     try:
-        # Filtrar keys internas del contexto para el agente
+        # Pasar contexto incluyendo historial conversacional
+        full_context = state.get("context", {})
+
+        # Separar historial del resto del contexto
+        conversation_history = full_context.get("conversation_history", [])
+
+        # Contexto limpio para el agente (sin keys internas del router)
         user_context = {
-            k: v for k, v in state.get("context", {}).items()
-            if not k.startswith("_")
+            k: v for k, v in full_context.items()
+            if not k.startswith("_") and k != "conversation_history"
         }
+
+        # Pasar historial como key especial que base_agent entiende
+        if conversation_history:
+            user_context["_conversation_history"] = conversation_history
 
         result = await agent.execute(
             user_input=state["user_input"],

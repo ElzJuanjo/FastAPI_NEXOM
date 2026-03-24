@@ -17,8 +17,6 @@ class PlanResponse(BaseModel):
     name: str
     plan_type: str
     max_credits_per_month: int
-    max_agents: int
-    has_api_access: bool
     price_monthly_usd: float
     price_yearly_usd: float
 

@@ -11,6 +11,16 @@ UMBRAL GANADOR: Score ≥ 75/100
 from __future__ import annotations
 
 
+def _num(value, default: float = 0) -> float:
+    """Convierte a número de forma segura. None y strings inválidos → default."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def normalize(value: float, min_val: float, max_val: float) -> float:
     """Normaliza un valor a escala 0-100."""
     if max_val <= min_val:
@@ -36,11 +46,11 @@ def score_product(product: dict) -> dict:
     - is_winner: bool (score >= 75)
     - score_label: str (Ganador / Potencial / Descartado)
     """
-    sales = product.get("monthly_sales", 0)
-    margin = product.get("margin_pct", 0)
-    trend = product.get("trend_growth_pct", 0)
-    competition = product.get("competition_level", 5)
-    rating = product.get("rating", 0)
+    sales = _num(product.get("monthly_sales"), 0)
+    margin = _num(product.get("margin_pct"), 0)
+    trend = _num(product.get("trend_growth_pct"), 0)
+    competition = _num(product.get("competition_level"), 5)
+    rating = _num(product.get("rating"), 0)
 
     # Normalizar cada componente (0-100)
     sales_score = normalize(sales, 0, 1000)        # 0-1000 ventas/mes

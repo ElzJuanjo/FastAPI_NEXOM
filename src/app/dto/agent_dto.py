@@ -1,6 +1,5 @@
 """
 DTOs para AgentTask (historial de ejecuciones).
-AgentConfig ya no existe — los agentes son globales.
 """
 
 from datetime import datetime
@@ -8,10 +7,6 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-
-# ---------------------------------------------------------------------------
-# AgentTask
-# ---------------------------------------------------------------------------
 
 class AgentTaskResponse(BaseModel):
     id: str
@@ -22,11 +17,10 @@ class AgentTaskResponse(BaseModel):
     input_payload: Optional[dict] = None
     output_payload: Optional[dict] = None
     error_message: Optional[str] = None
-    tokens_used: Optional[int] = None
-    cost_usd: Optional[float] = None
+    credits_used: Optional[int] = None
+    duration_ms: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
-    duration_ms: Optional[int] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

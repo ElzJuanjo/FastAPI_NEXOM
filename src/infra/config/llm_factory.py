@@ -8,9 +8,9 @@ from infra.config.database import settings
 
 
 def get_chat_model(
-    model: str = "openai/gpt-4.1-mini",
+    model: str = "x-ai/grok-4.1-fast",
     temperature: float = 0.7,
-    max_tokens: int = 2048,
+    max_tokens: int = 16384,
 ) -> ChatOpenAI:
     """
     Crea un ChatModel apuntando a OpenRouter.

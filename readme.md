@@ -195,3 +195,11 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `infra/tools/s3_client.py`          | Cliente async para subir archivos a S3.                                |
 | `app/use_cases/creative_persist.py` | Utilidad para persistir imágenes generadas como Creatives en BD + S3. |
 | `domain/entities/creative_batch.py` | Agrupa creativos generados en una sola ejecución.                     |
+
+### Sprint 16 - Historial de conversación
+
+| Archiovo                                 | Propósito                                    |
+| ---------------------------------------- | --------------------------------------------- |
+| `domain/entities/conversation.py`      | Entidades Conversation y ConversationMessage. |
+| `app/dto/conversation_dto.py`          | DTOs para Conversation.                       |
+| `interface/api/conversation_router.py` | Historial de chat multi-turn con agentes.     |

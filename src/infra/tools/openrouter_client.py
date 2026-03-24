@@ -32,7 +32,7 @@ class OpenRouterClient:
         model: str,
         messages: list[dict],
         temperature: float = 0.7,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
         system_prompt: Optional[str] = None,
     ) -> dict:
         """

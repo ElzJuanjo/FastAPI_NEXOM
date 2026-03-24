@@ -36,10 +36,10 @@ async def execute_single_step(
             "step_id": step_id,
             "agent_type": agent_type,
             "status": "error",
-            "content": f"Agente '{agent_type}' no disponible",
+            "content": f"Agent '{agent_type}' not available",
             "tokens_total": 0,
             "duration_ms": 0,
-            "error": f"Agente '{agent_type}' no registrado en el sistema",
+            "error": f"Agent '{agent_type}' not registered in the system",
         }
 
     try:
@@ -143,6 +143,6 @@ async def execute_flow(state: FlowExecutionState) -> FlowExecutionState:
     state["completed_step_ids"] = completed_ids
     state["completed"] = True
     if has_errors:
-        state["error"] = "Uno o más steps fallaron durante la ejecución"
+        state["error"] = "One or more steps failed during execution"
 
     return state

@@ -14,59 +14,55 @@ class StoreDevAgent(BaseAgent):
 
     @property
     def default_model(self) -> str:
-        return "anthropic/claude-sonnet-4-6"
+        return "google/gemini-3.1-pro-preview"
 
     @property
     def system_prompt(self) -> str:
-        return """Eres un experto en desarrollo y configuración de tiendas online para E-Commerce en Latinoamérica.
+        return """You are an expert in online store development and configuration for E-Commerce.
 
-STACK RECOMENDADO BASE:
-- Temas: Debutify / Dawn / Impulse (Shopify) o Starter Templates (WooCommerce)
+RECOMMENDED BASE STACK:
+- Themes: Debutify / Dawn / Impulse (Shopify) or starter templates (WooCommerce)
 - Reviews: Loox / Judge.me
 - Upsell: ReConvert / Bold Upsell
 - Email: Klaviyo / Omnisend
 - Chatbot: Tidio / Gorgias
-- Suscripción: Seal Subscriptions / ReCharge
-- Urgencia: Hurrify / Countdown Timer
+- Subscription: Seal Subscriptions / ReCharge
+- Urgency: Hurrify / Countdown Timer
 
-PÍXELES Y TRACKING:
-- Meta CAPI (Conversions API)
-- TikTok Events API
-- Google Analytics 4 (GA4)
-- Hotjar (heatmaps y recordings)
+PIXELS & TRACKING: Meta CAPI, TikTok Events API, GA4, Hotjar
 
-CHECKOUT OPTIMIZADO:
-- Shop Pay · Wompi · PayU · Bancolombia (PSE) · Nequi
-- Trust badges en checkout
-- Progress bar de pasos
-- Express checkout habilitado
+OPTIMIZED CHECKOUT:
+- Shop Pay · Stripe · PayPal · Local gateways (Wompi, PayU, PSE, Nequi for LATAM; Conekta, OXXO for Mexico)
+- Trust badges in checkout
+- Step progress bar
+- Express checkout enabled
 
-METAS DE RENDIMIENTO (Core Web Vitals):
-- LCP (Largest Contentful Paint): <2.5s
-- CLS (Cumulative Layout Shift): <0.1
-- FID (First Input Delay): <100ms
+PERFORMANCE TARGETS (Core Web Vitals): LCP <2.5s, CLS <0.1, FID <100ms
 
-Para cada tienda generas:
+For each store generate:
+1. **Platform selection**: Shopify vs WooCommerce vs alternatives — recommendation with justification
+2. **Structure**: Required pages, navigation menu, categories and collections
+3. **Technical setup**: Payment gateways, shipping providers, domain, SSL
+4. **Technical SEO**: Meta titles/descriptions, URL structure, Schema markup, sitemap
+5. **App stack**: Personalized selection based on niche with justification
+6. **Integrations**: GA4, Meta Pixel, TikTok Pixel, WhatsApp Business, Chatbot
+7. **Launch checklist**: Pre-go-live steps, tests, transactional emails
 
-1. **Selección de plataforma**: Shopify vs WooCommerce vs Tiendanube — recomendación con justificación
-2. **Estructura**: Páginas necesarias, menú de navegación, categorías y colecciones
-3. **Configuración técnica**: Pasarelas de pago, envíos (Dropi, Servientrega, Coordinadora), dominio, SSL
-4. **SEO técnico**: Meta titles/descriptions, estructura de URLs, Schema markup, sitemap
-5. **Stack de apps**: Selección personalizada según el nicho con justificación
-6. **Integraciones**: GA4, Meta Pixel, TikTok Pixel, WhatsApp Business, Chatbot
-7. **Checklist de lanzamiento**: Pasos previos al go-live, tests, emails transaccionales
-
-Responde de forma práctica y accionable, con pasos concretos y herramientas específicas.
-Responde en español."""
+Adapt payment gateways, shipping providers, and references to the user's country/region.
+Respond in the same language the user writes in."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
-        parts = [f"Solicitud: {user_input}\n"]
+        parts = [f"Request: {user_input}\n"]
 
         if context:
             user_context = {k: v for k, v in context.items() if not k.startswith("_")}
             if user_context:
-                parts.append("Contexto:")
+                parts.append("Context:")
                 for k, v in user_context.items():
                     parts.append(f"- {k}: {v}")
 
-        return [{"role": "user", "content": "\n".join(parts)}]
+        return self._build_messages_with_history("\n".join(parts), context)
+    
+
+    async def execute(self, user_input, context=None, model_override=None, temperature=0.6, max_tokens=16384):
+        return await super().execute(user_input, context, model_override, temperature, max_tokens)

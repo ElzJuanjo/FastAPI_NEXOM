@@ -66,9 +66,10 @@ class UserRole(str, enum.Enum):
 
 
 class PlanType(str, enum.Enum):
-    FREE = "free"
-    PRO = "pro"
-    ENTERPRISE = "enterprise"
+    FREE = "FREE"
+    PLUS = "PLUS"
+    VIP = "VIP"
+    MVP = "MVP"
 
 
 class BillingStatus(str, enum.Enum):
@@ -79,6 +80,7 @@ class BillingStatus(str, enum.Enum):
 
 
 class AgentType(str, enum.Enum):
+    GENERAL_ASSISTANT = "general_assistant"
     PRODUCT_SEARCH = "product_search"
     DROPI_CONNECTOR = "dropi_connector"
     STORE_DEV = "store_dev"

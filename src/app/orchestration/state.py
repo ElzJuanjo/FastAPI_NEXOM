@@ -5,10 +5,8 @@ TypedDict que LangGraph usa para pasar datos entre nodos del grafo.
 
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Optional
 from typing_extensions import TypedDict
-
-from langgraph.graph import add_messages
 
 
 class OrchestratorState(TypedDict):

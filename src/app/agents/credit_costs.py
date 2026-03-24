@@ -1,36 +1,40 @@
 """
 Tabla de costos en créditos por tipo de agente.
-1 crédito ≈ $0.002 USD de costo real.
-
 Ajustar estos valores cambia el consumo sin tocar código.
 """
 
 CREDIT_COSTS: dict[str, int] = {
-    # ChatGPT agents (más baratos)
-    "product_search": 5,
-    "dropi_connector": 5,
-    "ads": 5,
+    # Grok (más económico)
     "general_assistant": 1,
 
-    # Claude agents (más caros)
-    "branding": 10,
-    "copywriting": 10,
-    "landing_page": 10,
-    "store_dev": 10,
-    "conversion_opt": 10,
+    # GPT-5.4 Nano
+    "dropi_connector": 2,
 
-    # Image generation (el más caro por unidad)
+    # Gemini Flash
+    "product_search": 4,
+    "ads": 4,
+    "conversion_opt": 4,
+
+    # Gemini Pro
+    "landing_page": 14,
+    "store_dev": 14,
+
+    # Image generation
     "image_gen": 15,
+
+    # GPT-5.4 (premium)
+    "branding": 17,
+    "copywriting": 17,
 
     # Video (futuro)
     "video_gen": 20,
 }
 
-# Costo del router por cada request al orquestador
-ROUTER_CREDIT_COST = 1
+# El costo del router ya está contemplado en el precio de cada agente
+ROUTER_CREDIT_COST = 0
 
 # Fallback si el agente no está en la tabla
-DEFAULT_CREDIT_COST = 5
+DEFAULT_CREDIT_COST = 4
 
 
 def get_credit_cost(agent_type: str) -> int:

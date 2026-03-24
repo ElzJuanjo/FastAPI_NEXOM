@@ -189,7 +189,10 @@ async def generate_creative_batch(
         flag_modified(batch, "config")
         await session.flush()
 
-    # Ejecutar generación
+    # Ejecutar generación (medir duración)
+    import time
+    batch_start_time = time.time()
+
     try:
         batch_result = await execute_creative_batch(
             product_name=body.product_name,
@@ -201,6 +204,8 @@ async def generate_creative_batch(
         batch.status = FlowStatus.ERROR
         await session.commit()
         raise HTTPException(status_code=500, detail=f"Error generando batch: {str(e)}")
+
+    batch_duration_ms = int((time.time() - batch_start_time) * 1000)
 
     # Persistir imágenes
     images_data = batch_result.get("images", [])
@@ -228,18 +233,21 @@ async def generate_creative_batch(
     # Cobrar créditos
     organization.credits_used_this_month += new_credits
 
-    # Registrar en agent_tasks para actividad reciente
+    # Registrar en agent_tasks
     from domain.entities.agent import AgentTask
     from datetime import datetime, timezone
 
-    task_status = "completed"
-    task_error = None
-    if new_failed > 0 and new_generated > 0:
-        task_status = "completed"
-        task_error = f"{new_failed} de {total_images} imágenes fallaron"
-    elif new_failed > 0 and new_generated == 0:
+    if new_generated == 0:
         task_status = "error"
-        task_error = f"Todas las {new_failed} imágenes fallaron"
+        task_error = f"Todas las {total_images} imágenes fallaron"
+    elif new_failed > 0:
+        task_status = "partial"
+        task_error = f"{new_failed} de {total_images} imágenes fallaron"
+    else:
+        task_status = "completed"
+        task_error = None
+
+    success_pct = round((new_generated / total_images) * 100, 1) if total_images > 0 else 0
 
     try:
         agent_task = AgentTask(
@@ -247,21 +255,21 @@ async def generate_creative_batch(
             agent_type="image_gen",
             status=task_status,
             input_payload={
+                "batch_id": batch.id,
                 "batch_name": gallery_name,
                 "product_description": body.product_description,
-                "preset_id": body.preset_id,
                 "total_requested": total_images,
             },
             output_payload={
+                "content": f"Batch '{gallery_name}': {new_generated}/{total_images} imágenes generadas",
                 "batch_id": batch.id,
                 "total_generated": new_generated,
                 "total_failed": new_failed,
-                "credits_consumed": new_credits,
-                "content": f"Batch '{gallery_name}': {new_generated} imágenes generadas"
-                           + (f", {new_failed} fallidas" if new_failed > 0 else ""),
+                "success_pct": success_pct,
             },
             error_message=task_error,
-            tokens_used=0,
+            credits_used=new_credits,
+            duration_ms=batch_duration_ms,
             started_at=datetime.now(timezone.utc),
             finished_at=datetime.now(timezone.utc),
         )

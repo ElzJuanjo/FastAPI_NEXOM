@@ -51,10 +51,18 @@ async def executor_node(state: OrchestratorState) -> dict:
         if conversation_history:
             user_context["_conversation_history"] = conversation_history
 
+        # Emit progress
+        emitter = full_context.get("_progress_emitter")
+        if emitter:
+            await emitter.emit("generating", 40, agent=agent_type, message=f"Agent {agent_type} processing...")
+            
         result = await agent.execute(
             user_input=state["user_input"],
             context=user_context if user_context else None,
         )
+        
+        if emitter:
+            await emitter.emit("processing", 80, agent=agent_type, message="Preparing response...")
 
         return {
             "agent_output": result,

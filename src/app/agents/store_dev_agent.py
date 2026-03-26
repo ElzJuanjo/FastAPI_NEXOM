@@ -49,7 +49,14 @@ For each store generate:
 7. **Launch checklist**: Pre-go-live steps, tests, transactional emails
 
 Adapt payment gateways, shipping providers, and references to the user's country/region.
-Respond in the same language the user writes in."""
+Respond in the same language the user writes in.
+
+CRITICAL INTERACTION RULES:
+- NEVER offer numbered option menus. Deliver the complete store configuration directly.
+- Pick the best platform and stack based on the context and justify your choice.
+- If the user confirms or sends a short message, deliver content immediately.
+- EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
+- NEVER repeat or regenerate content you already delivered. If the user says "continue" or confirms, deliver NEW content that advances from where you left off."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         parts = [f"Request: {user_input}\n"]

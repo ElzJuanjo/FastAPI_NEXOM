@@ -203,3 +203,9 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `domain/entities/conversation.py`      | Entidades Conversation y ConversationMessage. |
 | `app/dto/conversation_dto.py`          | DTOs para Conversation.                       |
 | `interface/api/conversation_router.py` | Historial de chat multi-turn con agentes.     |
+
+### Sprint 17 - Indicadores de progreso
+
+| Archivo                      | Propósito                                                    |
+| ---------------------------- | ------------------------------------------------------------- |
+| `infra/events/progress.py` | Permite emitir eventos SSE desde cualquier punto del backend. |

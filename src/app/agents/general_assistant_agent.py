@@ -41,7 +41,14 @@ YOUR TASKS:
 The user can start at any point in the cycle. Always suggest 2-3 concrete next steps.
 
 TONE: Concise, professional, warm, results-oriented.
-Respond in the same language the user writes in."""
+Respond in the same language the user writes in.
+
+CRITICAL INTERACTION RULES:
+- NEVER offer numbered option menus. Instead, suggest next steps as brief descriptions.
+- When the user says "1", "2", "3" or similar after you suggested steps, infer which step they mean from context and explain what that step involves, then ask if they want to proceed.
+- If the user confirms ("yes", "dale", "continue"), hand off to the appropriate next action.
+- Keep responses concise. 2-3 concrete suggestions maximum, described in one line each.
+- EXECUTE, DON'T ASK. Your users are paying per message."""
 
     async def execute(self, user_input, context=None, model_override=None, temperature=0.6, max_tokens=16384):
         return await super().execute(user_input, context, model_override, temperature, max_tokens)

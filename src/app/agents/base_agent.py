@@ -47,6 +47,7 @@ class BaseAgent(ABC):
 
         return self._build_messages_with_history(content, context)
 
+
     async def execute(
         self,
         user_input: str,
@@ -77,24 +78,25 @@ class BaseAgent(ABC):
     
 
     def _build_messages_with_history(self, user_content: str, context: dict | None = None) -> list[dict]:
-        """
-        Construye mensajes incluyendo historial conversacional.
-        Para agentes con build_messages custom que necesitan inyectar datos extra.
-        """
         messages = []
 
-        # Incluir historial conversacional
         if context and "_conversation_history" in context:
             history = context["_conversation_history"]
             recent = history[-10:] if len(history) > 10 else history
-            for msg in recent:
+
+            last_assistant_idx = -1
+            for i in range(len(recent) - 1, -1, -1):
+                if recent[i].get("role") == "assistant":
+                    last_assistant_idx = i
+                    break
+
+            for i, msg in enumerate(recent):
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
-                if len(content) > 1500:
-                    content = content[:1500] + "\n\n[... truncated ...]"
+                max_len = 3000 if i == last_assistant_idx else 1500
+                if len(content) > max_len:
+                    content = content[:max_len] + "\n\n[... truncated ...]"
                 messages.append({"role": role, "content": content})
 
-        # Agregar el mensaje actual
         messages.append({"role": "user", "content": user_content})
-
         return messages

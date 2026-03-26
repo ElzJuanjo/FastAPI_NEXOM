@@ -108,11 +108,12 @@ async def execute_creative_batch(
     custom_angles: list[str] | None = None,
     custom_formats: list[str] | None = None,
     custom_styles: list[str] | None = None,
+    progress_emitter=None,
 ) -> dict:
     """
-    Ejecuta un batch usando el agente de imágenes con su system_prompt.
+    Ejecuta un batch usando el agente de imágenes.
     Genera exactamente la cantidad de imágenes del preset.
-    Cada variación cambia estilo y formato, el prompt base es el mismo.
+    Si progress_emitter está presente, emite progreso por cada imagen.
     """
     preset = BATCH_PRESETS.get(preset_id, BATCH_PRESETS["starter"])
     variations = preset["variations"]
@@ -120,9 +121,8 @@ async def execute_creative_batch(
 
     agent = get_agent("image_gen")
     if not agent:
-        return {"error": "Agente de imágenes no disponible", "images": []}
+        return {"error": "Image generation agent not available", "images": []}
 
-    # Prompt base: lo que el usuario quiere, el agente ya tiene el system_prompt profesional
     base_input = f"{product_name}. {product_description}"
     if brand_palette:
         base_input += f". Brand colors: {brand_palette}"
@@ -131,15 +131,23 @@ async def execute_creative_batch(
     total_generated = 0
     total_failed = 0
 
-    for variation in variations:
-        # Ya tenemos suficientes
+    for idx, variation in enumerate(variations):
         if total_generated >= target_count:
             break
 
         style_info = STYLE_MAP.get(variation["style"], STYLE_MAP["product_only"])
         format_info = FORMAT_MAP.get(variation["format"], FORMAT_MAP["feed_1x1"])
 
-        # El user_input incluye el estilo como indicación, el system_prompt del agente hace el resto
+        # Emit progress
+        if progress_emitter:
+            pct = int(10 + (idx / target_count) * 80)
+            await progress_emitter.emit(
+                stage="generating",
+                pct=pct,
+                message=f"Generating image {idx + 1}/{target_count} — {style_info['id']}",
+                detail=f"{format_info['platform']} ({format_info['aspect_ratio']})",
+            )
+
         user_input = f"{base_input}. Style: {style_info['suffix']}"
 
         try:
@@ -153,7 +161,6 @@ async def execute_creative_batch(
 
             images = result.get("images", [])
             if images:
-                # Solo tomar 1 imagen por variación para control exacto de cantidad
                 img = images[0]
                 total_generated += 1
                 results.append({
@@ -166,6 +173,15 @@ async def execute_creative_batch(
                     "prompt_used": user_input,
                     "model": result.get("model", ""),
                 })
+
+                if progress_emitter:
+                    pct = int(10 + ((idx + 1) / target_count) * 80)
+                    await progress_emitter.emit(
+                        stage="image_ready",
+                        pct=pct,
+                        message=f"Image {total_generated}/{target_count} completed",
+                        detail=variation["style"],
+                    )
             else:
                 total_failed += 1
                 logger.warning(f"Batch variation {variation} returned no images")
@@ -175,6 +191,9 @@ async def execute_creative_batch(
             logger.error(f"Batch variation {variation} failed: {e}")
 
     credit_per_image = get_credit_cost("image_gen")
+
+    if progress_emitter:
+        await progress_emitter.emit(stage="uploading", pct=92, message="Uploading images to storage...")
 
     return {
         "images": results,

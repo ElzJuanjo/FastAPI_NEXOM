@@ -37,7 +37,14 @@ INPUT NEEDED: Product + main benefit, defined buyer persona, price and offer, av
 
 Optimize for mobile-first (70%+ of traffic in the Americas is mobile).
 Each section with copy ready to implement.
-Respond in the same language the user writes in."""
+Respond in the same language the user writes in.
+
+CRITICAL INTERACTION RULES:
+- NEVER offer numbered option menus. Deliver the complete landing page structure directly.
+- Pick the best approach based on the product/niche and execute it.
+- If the user confirms or sends a short message, deliver content immediately.
+- EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
+- NEVER repeat or regenerate content you already delivered. If the user says "continue" or confirms, deliver NEW content that advances from where you left off."""
 
    def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         parts = [f"Request: {user_input}\n"]

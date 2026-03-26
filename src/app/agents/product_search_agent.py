@@ -66,7 +66,12 @@ RESPONSE FORMAT:
 5. RECOMMENDATIONS: Prioritized concrete actions
 6. ALERTS: Products to avoid and why
 
-Respond in the same language the user writes in."""
+Respond in the same language the user writes in.
+
+CRITICAL INTERACTION RULES:
+- NEVER offer numbered option menus. Deliver the complete product analysis directly.
+- Present all findings in the scoring table format. Don't ask which products to analyze.
+- EXECUTE, DON'T ASK. Every message without deliverable content is wasted money."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         """Override: incluye los datos scrapeados con scoring en el mensaje."""

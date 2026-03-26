@@ -53,7 +53,14 @@ For each analysis generate:
 5. **Revenue potential**: Detailed calculation of additional revenue if improvements are implemented
 
 Adapt currency and benchmarks to the user's market.
-Respond in the same language the user writes in."""
+Respond in the same language the user writes in.
+
+CRITICAL INTERACTION RULES:
+- NEVER offer numbered option menus. Deliver the complete analysis directly.
+- If data is limited, state assumptions and deliver the analysis anyway.
+- If the user confirms or sends a short message, continue the analysis.
+- EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
+- NEVER repeat or regenerate content you already delivered. If the user says "continue" or confirms, deliver NEW content that advances from where you left off."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         parts = [f"Request: {user_input}\n"]

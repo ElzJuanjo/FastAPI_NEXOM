@@ -73,6 +73,17 @@ async def router_node(state: OrchestratorState) -> dict:
     """
     Analiza el input del usuario CON historial conversacional y decide qué agente usar.
     """
+    # If agent was forced, skip routing
+    if state.get("selected_agent"):
+        selected = state["selected_agent"]
+        emitter = state.get("context", {}).get("_progress_emitter")
+        if emitter:
+            await emitter.emit("executing", 25, agent=selected, message=f"Using {selected} (forced)...")
+        return {
+            "selected_agent": selected,
+            "context": {**state.get("context", {}), "_router_reasoning": f"Forced agent: {selected}"},
+        }
+        
     llm = get_chat_model()
 
     # Construir contexto con historial (últimos 10 mensajes)
@@ -120,6 +131,11 @@ async def router_node(state: OrchestratorState) -> dict:
         decision = json.loads(content)
         selected = decision.get("agent", "general_assistant")
         reasoning = decision.get("reasoning", "")
+        
+        # Emit progress
+        emitter = state.get("context", {}).get("_progress_emitter")
+        if emitter:
+            await emitter.emit("executing", 25, agent=selected, message=f"Routing to {selected}...")
 
         return {
             "selected_agent": selected,

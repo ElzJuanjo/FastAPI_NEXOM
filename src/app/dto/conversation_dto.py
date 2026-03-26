@@ -38,7 +38,9 @@ class ConversationListResponse(BaseModel):
 
 class SendMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
-    conversation_id: Optional[str] = Field(default=None, description="ID de conversación existente. Null para nueva.")
+    conversation_id: Optional[str] = None
+    agent_type: Optional[str] = None
+    force_agent: Optional[str] = Field(default=None, description="Force a specific agent, bypassing the router")
 
 
 class SendMessageResponse(BaseModel):

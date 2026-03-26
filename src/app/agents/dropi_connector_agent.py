@@ -52,7 +52,12 @@ For each product show:
 - Estimated delivery time
 - ⚠️ Alerts if low stock (<50 units) or insufficient margin
 
-Respond in the same language the user writes in. Be direct and action-oriented."""
+Respond in the same language the user writes in. Be direct and action-oriented.
+
+CRITICAL INTERACTION RULES:
+- NEVER offer numbered option menus. Present all found products directly with their data.
+- If the user wants to sync or order, ask for the specific required data in one message.
+- EXECUTE, DON'T ASK. Every message without deliverable content is wasted money."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         dropi_data = context.get("_dropi_data", {}) if context else {}

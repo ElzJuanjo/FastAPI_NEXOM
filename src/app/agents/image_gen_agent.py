@@ -1,5 +1,5 @@
 """
-Agente de Imágenes — genera imágenes reales de producto usando Gemini.
+Agente de Imágenes — genera imágenes reales usando Gemini.
 Usa google/gemini-3.1-flash-image-preview vía OpenRouter.
 Retorna imágenes en base64 listas para almacenar o mostrar.
 """
@@ -21,45 +21,193 @@ class ImageGenAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return """You are a professional product photographer and creative director for E-Commerce.
-Generate high-quality product images based on the description provided.
+        return """You are a world-class visual content generator for E-Commerce and branding.
+You generate exactly what the user describes, adapting your output to the type of visual requested.
 
-IMAGE GENERATION RULES:
-- Focus on clean, professional, commercial-ready visuals
-- Follow the brand palette and style when provided
-- Adapt the image to the specified format and platform
+You MUST detect the type of image requested and adapt accordingly:
 
-CREATIVE SYSTEM BY ANGLE:
-- Transformation: before/after visual, show the result
-- Pain point: visualize the problem the product solves
-- Curiosity: pattern-interrupt, unexpected visual hook
-- Social proof: product in real-life context with people
-- Authority: clinical/professional setting
-- Novelty: unboxing, new arrival aesthetic
+TYPE DETECTION:
+- LOGO/BRANDING: If the user mentions "logo", "logotipo", "marca", "brand mark", "isotipo", "wordmark", "icon" → Generate a clean, professional logo design. NO product photography styling. Use solid or gradient backgrounds. The logo must be the ONLY element. No scenes, no products, no lifestyle.
+- PRODUCT PHOTOGRAPHY: If the user mentions a physical product, "product photo", "fotografía de producto" → Professional product photography with appropriate lighting and background.
+- AD CREATIVE: If the user mentions "ad", "anuncio", "banner", "creative" → Marketing-ready visual with text space considerations.
+- SOCIAL MEDIA: If the user mentions "post", "story", "reel", "feed" → Platform-optimized visual.
+- GENERAL: For anything else, generate the most appropriate visual.
 
-AWARENESS LEVELS (adapt visual approach):
-1. Unaware → lifestyle/desire imagery
-2. Problem aware → visualize the pain
-3. Solution aware → product category context
-4. Product aware → product hero shot + benefits
-5. Most aware → offer/bundle/packaging shot
+LOGO-SPECIFIC RULES (when type is LOGO/BRANDING):
+- Generate ONLY the logo, nothing else in the image
+- Clean background (solid color, subtle gradient, or transparent-style)
+- The logo must be centered and prominent
+- Follow any brand guidelines provided in context (colors, style, concept)
+- Make it look like a real, professional logo designed by a top agency
+- If the user asks for "just the logo" or "only the content", generate the logo isolated on a plain background with NO mockups, NO scenes, NO 3D effects
+- Use the EXACT brand colors if specified in the conversation history
 
-FORMATS:
-- 1:1 → Instagram feed, Facebook feed
-- 9:16 → Stories, Reels, TikTok
-- 16:9 → Banner, YouTube thumbnail
-- 4:5 → Instagram portrait
+PRODUCT PHOTOGRAPHY RULES (when type is PRODUCT):
+- Professional lighting, commercial-ready
+- Clean or contextual background as appropriate
+- High detail, 4K quality
 
-STYLES:
-- lifestyle → product in real-life context
-- flat_lay → top-down arrangement
-- before_after → split comparison
-- mockup → product on device/packaging
-- ugc_style → casual, authentic, phone-camera feel
-- editorial → high-fashion, magazine quality
-- product_only → white/clean background, hero shot
+CRITICAL INTERACTION RULES:
+- NEVER repeat a previous image. If the user asks for modifications, apply them to evolve the concept.
+- If the user says "now without background" or "just the logo", generate a cleaner version, not the same one.
+- Read the FULL conversation history for brand briefs, color palettes, and concepts. They are your creative brief.
+- EXECUTE exactly what is asked. Don't add elements the user didn't request.
 
-Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
+Respond in the same language the user writes in."""
+
+    # ── Image type detection keywords ─────────────────────────────────────
+
+    LOGO_KEYWORDS = [
+        "logo", "logotipo", "isotipo", "wordmark", "marca", "brand mark",
+        "icono de marca", "brand icon", "logo design", "diseño de logo",
+        "logomark", "símbolo", "symbol", "emblem", "emblema",
+    ]
+
+    PRODUCT_KEYWORDS = [
+        "producto", "product", "artículo", "item", "packaging",
+        "empaque", "botella", "bottle", "caja", "box", "device",
+    ]
+
+    def _detect_image_type(self, user_input: str, context: dict) -> str:
+        """Detect what type of image the user wants."""
+        combined = user_input.lower()
+
+        # Also check recent history for context
+        history = context.get("_conversation_history", [])
+        for msg in history[-4:]:
+            combined += " " + msg.get("content", "").lower()
+
+        for kw in self.LOGO_KEYWORDS:
+            if kw in combined:
+                return "logo"
+
+        for kw in self.PRODUCT_KEYWORDS:
+            if kw in combined:
+                return "product"
+
+        return "general"
+
+    # ── History enrichment ────────────────────────────────────────────────
+
+    def _enrich_with_history(self, user_input: str, context: dict) -> str:
+        """
+        Enriquece el prompt con contexto conversacional completo.
+        Busca briefs de branding, descripciones previas, y contexto relevante.
+        """
+        history = context.get("_conversation_history", [])
+        if not history:
+            return user_input
+
+        # If input is already very descriptive, use it directly
+        if len(user_input) > 300:
+            return user_input
+
+        # Collect ALL relevant context from history (not just last message)
+        brand_context = []
+        last_image_description = ""
+        last_user_request = ""
+
+        for msg in reversed(history[-10:]):
+            content = msg.get("content", "")
+            role = msg.get("role", "")
+
+            if role == "assistant":
+                # Look for brand briefs, logo concepts, color palettes
+                content_lower = content.lower()
+                has_brand_info = any(kw in content_lower for kw in [
+                    "brand book", "paleta", "palette", "color", "tipograf",
+                    "logo", "concepto", "concept", "identidad", "identity",
+                    "brand", "marca", "hex", "#", "font", "fuente",
+                    "isotipo", "wordmark", "slogan", "tagline",
+                ])
+
+                if has_brand_info and len(brand_context) < 3:
+                    # Extract key info, not the full message
+                    extracted = self._extract_brand_info(content)
+                    if extracted:
+                        brand_context.append(extracted)
+
+                if not last_image_description and "image" in content_lower or "imagen" in content_lower:
+                    last_image_description = content[:500]
+
+            elif role == "user" and not last_user_request:
+                last_user_request = content[:300]
+
+        # Build enriched prompt
+        parts = [f"Current request: {user_input}"]
+
+        if brand_context:
+            parts.append(f"\nBrand context from this conversation:\n" + "\n".join(brand_context))
+
+        if last_user_request and last_user_request.lower() != user_input.lower():
+            parts.append(f"\nPrevious related request: {last_user_request}")
+
+        if last_image_description:
+            parts.append(f"\nPrevious image generated was about: {last_image_description[:300]}")
+
+        parts.append(f"\nGenerate the image following ALL the context above. Apply brand colors, concepts, and style if mentioned.")
+
+        return "\n".join(parts)
+
+    def _extract_brand_info(self, content: str) -> str:
+        """Extract key brand information from a long assistant message."""
+        lines = content.split("\n")
+        key_info = []
+
+        for line in lines:
+            line_lower = line.lower().strip()
+            # Extract lines with colors, fonts, concepts
+            if any(kw in line_lower for kw in [
+                "#", "hex", "rgb", "color", "palette", "paleta",
+                "font", "tipograf", "fuente", "sora", "manrope", "jakarta",
+                "concepto", "concept", "idea central",
+                "logo", "isotipo", "wordmark",
+                "azul", "blue", "violeta", "violet", "purple",
+                "transmitir", "communicate", "represent",
+                "minimalista", "minimalist", "geométric", "geometric",
+                "dirección", "direction",
+            ]):
+                cleaned = line.strip()
+                if 5 < len(cleaned) < 200:
+                    key_info.append(cleaned)
+
+        # Limit to most relevant info
+        return "\n".join(key_info[:15]) if key_info else ""
+
+    # ── Prompt builder ────────────────────────────────────────────────────
+
+    def _build_image_prompt(self, user_input: str, context: dict, style: str, image_type: str) -> str:
+        """Construye un prompt optimizado según el tipo de imagen."""
+        parts = [user_input]
+
+        # Brand context
+        brand = context.get("brand", "")
+        if brand:
+            parts.append(f"Brand: {brand}")
+
+        colors = context.get("colors", "")
+        if colors:
+            parts.append(f"Brand colors: {colors}")
+
+        # Type-specific quality instructions
+        if image_type == "logo":
+            parts.append(f"Style: {style}")
+            parts.append(
+                "This is a LOGO design. Generate ONLY the logo, centered, on a clean background. "
+                "Professional, scalable, modern. No product photography. No lifestyle scenes. "
+                "No mockups unless explicitly requested. The logo should look like it was designed "
+                "by a top branding agency. Sharp vectors, clean geometry, premium feel."
+            )
+        elif image_type == "product":
+            parts.append(f"Style: {style}")
+            parts.append("High quality, professional lighting, clean background, commercial ready, 4K detail")
+        else:
+            parts.append(f"Style: {style}")
+            parts.append("High quality, professional, visually striking, commercial ready")
+
+        return ". ".join(parts)
+
+    # ── Execute ───────────────────────────────────────────────────────────
 
     async def execute(
         self,
@@ -69,24 +217,29 @@ Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
         temperature: float = 0.8,
         max_tokens: int = 4096,
     ) -> dict:
-        """
-        Genera una imagen real usando Gemini via OpenRouter.
-        Si hay historial conversacional, lo usa para entender el contexto.
-        """
         context = context or {}
 
-        # Determinar aspect ratio del contexto
-        aspect_ratio = context.get("aspect_ratio", context.get("format", "1:1"))
-        style = context.get("style", "professional product photography")
+        # Detect image type
+        image_type = self._detect_image_type(user_input, context)
 
-        # Si hay historial, construir un prompt contextualizado
+        # Determine style based on type
+        if image_type == "logo":
+            style = context.get("style", "modern logo design, vector style, clean and professional")
+            if context.get("aspect_ratio") is None:
+                context["aspect_ratio"] = "1:1"
+        else:
+            style = context.get("style", "professional product photography")
+
+        aspect_ratio = context.get("aspect_ratio", context.get("format", "1:1"))
+
+        # Enrich with conversation history
         enriched_input = self._enrich_with_history(user_input, context)
 
-        # Construir prompt enriquecido
-        prompt = self._build_image_prompt(enriched_input, context, style)
+        # Build prompt
+        prompt = self._build_image_prompt(enriched_input, context, style, image_type)
         model = model_override or self.default_model
 
-        # Generar imagen
+        # Generate image
         result = await self._client.image_generation(
             prompt=prompt,
             model=model,
@@ -97,7 +250,7 @@ Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
         images = result.get("images", [])
         image_count = len(images)
 
-        # Formatear respuesta adaptativa al idioma del input
+        # Language detection for response
         input_lower = user_input.lower()
         is_english = any(w in input_lower for w in ["generate", "create", "make", "image", "photo", "picture", "design"])
         is_portuguese = any(w in input_lower for w in ["gerar", "criar", "imagem", "foto"])
@@ -105,9 +258,10 @@ Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
         if is_english:
             style_labels = {
                 "professional product photography": "Professional product photography",
+                "modern logo design, vector style, clean and professional": "Logo design",
                 "lifestyle": "Lifestyle", "product_only": "Clean background hero shot",
-                "editorial": "Editorial / magazine", "ugc_style": "UGC style (authentic content)",
-                "flat_lay": "Flat lay (top-down)", "detail": "Detail / macro", "context": "Product in context",
+                "editorial": "Editorial / magazine", "ugc_style": "UGC style",
+                "flat_lay": "Flat lay", "detail": "Detail / macro", "context": "Product in context",
             }
             format_labels = {
                 "1:1": "Square (1:1) — Instagram/Facebook Feed",
@@ -120,9 +274,8 @@ Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
         elif is_portuguese:
             style_labels = {
                 "professional product photography": "Fotografia profissional de produto",
+                "modern logo design, vector style, clean and professional": "Design de logotipo",
                 "lifestyle": "Estilo de vida", "product_only": "Produto em fundo limpo",
-                "editorial": "Editorial / revista", "ugc_style": "Estilo UGC (conteúdo autêntico)",
-                "flat_lay": "Vista de cima (flat lay)", "detail": "Detalhe / macro", "context": "Produto em contexto",
             }
             format_labels = {
                 "1:1": "Quadrado (1:1) — Feed Instagram/Facebook",
@@ -131,13 +284,14 @@ Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
                 "4:5": "Retrato (4:5) — Instagram",
             }
             success_msg = "Imagem gerada" if image_count == 1 else f"{image_count} imagens geradas"
-            fail_msg = "Não foi possível gerar a imagem. Tente uma descrição mais detalhada."
+            fail_msg = "Não foi possível gerar a imagem."
         else:
             style_labels = {
                 "professional product photography": "Fotografía profesional de producto",
+                "modern logo design, vector style, clean and professional": "Diseño de logotipo",
                 "lifestyle": "Estilo de vida", "product_only": "Producto en fondo limpio",
-                "editorial": "Editorial / revista", "ugc_style": "Estilo UGC (contenido auténtico)",
-                "flat_lay": "Vista cenital (flat lay)", "detail": "Detalle / macro", "context": "Producto en contexto",
+                "editorial": "Editorial / revista", "ugc_style": "Estilo UGC",
+                "flat_lay": "Vista cenital", "detail": "Detalle / macro", "context": "Producto en contexto",
             }
             format_labels = {
                 "1:1": "Cuadrado (1:1) — Feed Instagram/Facebook",
@@ -148,17 +302,14 @@ Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
             success_msg = "Imagen generada" if image_count == 1 else f"{image_count} imágenes generadas"
             fail_msg = "No se pudo generar la imagen. Intenta con una descripción más detallada."
 
-        style_es = style_labels.get(style, style)
-        format_es = format_labels.get(aspect_ratio, aspect_ratio)
+        style_label = style_labels.get(style, style)
+        format_label = format_labels.get(aspect_ratio, aspect_ratio)
 
         content_parts = []
         if image_count > 0:
-            content_parts.append(f"✅ {success_msg}.")
+            content_parts.append(f"✅ {success_msg}. **{'Style' if is_english else 'Estilo'}:** {style_label} **{'Format' if is_english else 'Formato'}:** {format_label}")
         else:
             content_parts.append(f"⚠️ {fail_msg}")
-
-        content_parts.append(f"**{'Style' if is_english else 'Estilo'}:** {style_es}")
-        content_parts.append(f"**{'Format' if is_english else 'Formato'}:** {format_es}")
 
         if result.get("text"):
             content_parts.append(f"\n{result['text']}")
@@ -176,71 +327,6 @@ Generate images that are ready-to-use for Meta Ads Manager and TikTok Ads."""
                 "prompt": prompt,
                 "style": style,
                 "aspect_ratio": aspect_ratio,
+                "image_type": image_type,
             },
         }
-
-    def _enrich_with_history(self, user_input: str, context: dict) -> str:
-        """
-        Enriquece el prompt con contexto conversacional.
-        Si el mensaje es corto o referencial, incluye el último intercambio
-        para que el modelo de imágenes entienda qué se pide.
-        """
-        history = context.get("_conversation_history", [])
-        if not history:
-            return user_input
-
-        # Si el input ya es suficientemente descriptivo (>200 chars), usarlo directo
-        if len(user_input) > 200:
-            return user_input
-
-        # Extraer el último mensaje del assistant y el último del user
-        # para entender el contexto inmediato
-        last_assistant = ""
-        last_user_request = ""
-        for msg in reversed(history):
-            if msg.get("role") == "assistant" and not last_assistant:
-                last_assistant = msg.get("content", "")
-            elif msg.get("role") == "user" and not last_user_request:
-                last_user_request = msg.get("content", "")
-            if last_assistant and last_user_request:
-                break
-
-        # Truncar
-        if len(last_assistant) > 1000:
-            last_assistant = last_assistant[:1000]
-        if len(last_user_request) > 300:
-            last_user_request = last_user_request[:300]
-
-        # Construir prompt con contexto
-        enriched = (
-            f"Previous context in this conversation:\n"
-            f"- User previously asked: {last_user_request}\n"
-            f"- Assistant responded with an image/content about: {last_assistant[:500]}\n\n"
-            f"Now the user wants: {user_input}\n\n"
-            f"Generate an image that follows from the previous context. "
-            f"If the user is asking for a modification of the previous image, "
-            f"keep the same subject and style but apply the requested change."
-        )
-
-        return enriched
-
-    def _build_image_prompt(self, user_input: str, context: dict, style: str) -> str:
-        """Construye un prompt optimizado para generación de imágenes."""
-        parts = [user_input]
-
-        # Agregar contexto de marca si existe
-        brand = context.get("brand", "")
-        if brand:
-            parts.append(f"Brand: {brand}")
-
-        colors = context.get("colors", "")
-        if colors:
-            parts.append(f"Brand colors: {colors}")
-
-        # Agregar estilo
-        parts.append(f"Style: {style}")
-
-        # Agregar indicaciones de calidad
-        parts.append("High quality, professional lighting, clean background, commercial ready, 4K detail")
-
-        return ". ".join(parts)

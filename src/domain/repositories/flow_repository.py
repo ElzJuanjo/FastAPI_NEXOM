@@ -27,7 +27,7 @@ class FlowRepository(ABC):
         ...
 
     @abstractmethod
-    async def soft_delete(self, flow_id: str) -> None:
+    async def delete(self, flow: Flow) -> None:
         ...
 
     @abstractmethod
@@ -40,4 +40,8 @@ class FlowRepository(ABC):
 
     @abstractmethod
     async def update_step(self, step: FlowStep) -> FlowStep:
+        ...
+        
+    @abstractmethod
+    async def clear_step_dependencies(self, flow_id: str) -> None:
         ...

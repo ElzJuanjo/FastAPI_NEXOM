@@ -1,8 +1,8 @@
-"""add tables'
+"""refactor activity
 
-Revision ID: 927d8abe931f
+Revision ID: c495d1b62138
 Revises: 
-Create Date: 2026-03-23 17:46:06.519667
+Create Date: 2026-03-27 15:43:49.554096
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '927d8abe931f'
+revision: str = 'c495d1b62138'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -94,24 +94,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('user_id', 'provider', name='uq_user_auth_provider')
     )
     op.create_index(op.f('ix_user_auth_providers_deleted_at'), 'user_auth_providers', ['deleted_at'], unique=False)
-    op.create_table('activity_logs',
-    sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('actor_user_id', sa.UUID(as_uuid=False), nullable=True),
-    sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=True),
-    sa.Column('action', sa.String(length=255), nullable=False),
-    sa.Column('entity_type', sa.String(length=100), nullable=True),
-    sa.Column('entity_id', sa.UUID(as_uuid=False), nullable=True),
-    sa.Column('summary', sa.Text(), nullable=True),
-    sa.Column('status', sa.String(length=50), nullable=True),
-    sa.Column('extra_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
-    sa.ForeignKeyConstraint(['actor_user_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_activity_logs_entity', 'activity_logs', ['entity_type', 'entity_id'], unique=False)
-    op.create_index('ix_activity_logs_org_created', 'activity_logs', ['organization_id', 'created_at'], unique=False)
     op.create_table('brands',
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -154,7 +136,6 @@ def upgrade() -> None:
     sa.Column('status', sa.Enum('INACTIVE', 'RUNNING', 'COMPLETED', 'ERROR', 'PAUSED', name='flowstatus'), nullable=False),
     sa.Column('progress_pct', sa.Float(), nullable=False),
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('estimated_end_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('context', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
@@ -486,9 +467,6 @@ def downgrade() -> None:
     op.drop_table('conversations')
     op.drop_index(op.f('ix_brands_deleted_at'), table_name='brands')
     op.drop_table('brands')
-    op.drop_index('ix_activity_logs_org_created', table_name='activity_logs')
-    op.drop_index('ix_activity_logs_entity', table_name='activity_logs')
-    op.drop_table('activity_logs')
     op.drop_index(op.f('ix_user_auth_providers_deleted_at'), table_name='user_auth_providers')
     op.drop_table('user_auth_providers')
     op.drop_index('ix_organizations_slug', table_name='organizations')

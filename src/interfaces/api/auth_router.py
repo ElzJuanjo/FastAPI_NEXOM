@@ -395,7 +395,7 @@ async def verify_email(
 # ---------------------------------------------------------------------------
 
 @router.post("/resend-verification", response_model=ResendVerificationResponse)
-@limiter.limit("3/minute")
+@limiter.limit("1/30minutes")
 async def resend_verification(
     request: Request,
     body: ResendVerificationRequest,
@@ -630,6 +630,23 @@ async def verify_2fa(
         message="2FA activado exitosamente.",
         is_2fa_enabled=True,
     )
+    
+    
+@router.get("/me/verification-status")
+async def get_verification_status(
+    user_id: str = Depends(get_current_user_id),
+    user_repo: UserRepository = Depends(get_user_repository),
+):
+    """Returns verification status and token expiry info."""
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "is_verified": user.is_verified,
+        "email": user.email,
+        "verification_expires_hours": settings.JWT_VERIFICATION_TOKEN_EXPIRE_HOURS,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -682,28 +699,36 @@ async def get_referral_info(
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_session),
 ):
-    """Retorna el link de referido del usuario y estadísticas."""
+    """Retorna el link de referido, estadísticas y lista de referidos."""
     from domain.entities.user import User
     from sqlalchemy import select, func
 
-    # Obtener usuario
     stmt = select(User).where(User.id == user_id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # Contar referidos
-    count_stmt = select(func.count()).select_from(User).where(
-        User.referred_by_user_id == user_id,
-        User.deleted_at.is_(None),
+    # Get referred users with their emails
+    referrals_stmt = (
+        select(User.email, User.full_name, User.created_at)
+        .where(User.referred_by_user_id == user_id, User.deleted_at.is_(None))
+        .order_by(User.created_at.desc())
     )
-    count_result = await session.execute(count_stmt)
-    total_referrals = count_result.scalar() or 0
+    referrals_result = await session.execute(referrals_stmt)
+    referrals = [
+        {"email": r.email, "name": r.full_name, "joined_at": str(r.created_at)}
+        for r in referrals_result.all()
+    ]
+
+    total_referrals = len(referrals)
+    credits_earned = total_referrals * 15  # 15 credits per referral
 
     return {
         "referral_code": user.referral_code,
         "referral_link": f"{settings.FRONTEND_URL}?ref={user.referral_code}",
         "total_referrals": total_referrals,
+        "credits_earned": credits_earned,
+        "referrals": referrals,
     }

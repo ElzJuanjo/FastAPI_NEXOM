@@ -39,19 +39,22 @@ class FlowCreate:
         flow = await self._flow_repo.create(flow)
 
         if steps_data:
-            for step_data in steps_data:
+            # Create steps sequentially — each depends on the previous
+            previous_step_id: str | None = None
+            for step_data in sorted(steps_data, key=lambda s: s.get("order", 0)):
                 step = FlowStep(
                     flow_id=flow.id,
                     agent_type=step_data["agent_type"],
                     name=step_data["name"],
                     order=step_data["order"],
                     status=StepStatus.PENDING,
-                    depends_on_step_id=step_data.get("depends_on_step_id"),
+                    depends_on_step_id=previous_step_id,
                 )
-                await self._flow_repo.add_step(step)
+                step = await self._flow_repo.add_step(step)
+                previous_step_id = step.id
 
         return flow
-
+    
 
 class FlowList:
 
@@ -94,9 +97,15 @@ class FlowDelete:
 
     async def execute(self, flow_id: str) -> None:
         flow = await self._flow_repo.get_by_id(flow_id)
+
         if not flow:
-            raise FlowNotFoundError(f"Flow {flow_id} no encontrado")
-        await self._flow_repo.soft_delete(flow_id)
+            raise FlowNotFoundError(f"Flow {flow_id} not found")
+
+        # Romper dependencias entre steps
+        await self._flow_repo.clear_step_dependencies(flow_id)
+
+        # Borrar flow
+        await self._flow_repo.delete(flow)
 
 
 class FlowStepUpdate:

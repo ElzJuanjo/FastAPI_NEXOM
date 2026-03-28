@@ -15,6 +15,5 @@ from .creative import Creative
 from .landing_page import LandingPage, LandingPageSection
 from .copy_asset import CopyAsset
 from .conversion import ConversionAnalysis, OptimizationRecommendation
-from .activity_log import ActivityLog
 from .creative_batch import CreativeBatch
 from .conversation import Conversation, ConversationMessage

@@ -6,7 +6,7 @@ Permite instanciar flujos completos con un solo endpoint.
 from __future__ import annotations
 
 from domain.entities.flow import Flow, FlowStep
-from domain.entities.base import FlowStatus, StepStatus, AgentType
+from domain.entities.base import FlowStatus, StepStatus
 from domain.repositories.flow_repository import FlowRepository
 
 
@@ -171,27 +171,23 @@ class FlowFromTemplate:
         )
         flow = await self._flow_repo.create(flow)
 
-        # Crear Steps — primero sin depends_on para obtener IDs
-        step_id_by_order: dict[int, str] = {}
-        steps_pending_deps: list[tuple[FlowStep, int | None]] = []
+        # Create steps respecting the template's dependency graph
+        # order_to_step_id maps template order numbers to actual DB step IDs
+        order_to_step_id: dict[int, str] = {}
 
         for step_def in template["steps"]:
+            dep_order = step_def.get("depends_on")
+            depends_on_id = order_to_step_id.get(dep_order) if dep_order else None
+
             step = FlowStep(
                 flow_id=flow.id,
                 agent_type=step_def["agent_type"],
                 name=step_def["name"],
                 order=step_def["order"],
                 status=StepStatus.PENDING,
-                depends_on_step_id=None,  # se asigna después
+                depends_on_step_id=depends_on_id,
             )
             step = await self._flow_repo.add_step(step)
-            step_id_by_order[step_def["order"]] = step.id
-            steps_pending_deps.append((step, step_def.get("depends_on")))
-
-        # Asignar dependencias ahora que tenemos todos los IDs
-        for step, depends_on_order in steps_pending_deps:
-            if depends_on_order and depends_on_order in step_id_by_order:
-                step.depends_on_step_id = step_id_by_order[depends_on_order]
-                await self._flow_repo.update_step(step)
+            order_to_step_id[step_def["order"]] = step.id
 
         return flow

@@ -64,7 +64,6 @@ class FlowResponse(BaseModel):
     status: str
     progress_pct: float
     started_at: Optional[datetime] = None
-    estimated_end_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     context: Optional[dict] = None
     steps: list[FlowStepResponse] = []

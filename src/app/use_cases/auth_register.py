@@ -54,6 +54,7 @@ class AuthRegister:
         )
 
         # Vincular referido si se proporcionó código
+        referrer = None
         if referral_code:
             referrer = await self._user_repo.get_by_referral_code(referral_code)
             if referrer:
@@ -69,6 +70,34 @@ class AuthRegister:
             password_hash=hash_password(password),
         )
         await self._user_repo.create_auth_provider(auth_provider)
+        
+        # Bonus: add 15 credits to the referrer's organization
+        if referrer:
+            try:
+                from domain.entities.organization import OrganizationMember, Organization
+                from sqlalchemy import select
+
+                session = self._user_repo._session
+
+                referrer_member_stmt = select(OrganizationMember).where(
+                    OrganizationMember.user_id == referrer.id
+                )
+                referrer_member_result = await session.execute(referrer_member_stmt)
+                referrer_member = referrer_member_result.scalar_one_or_none()
+
+                if referrer_member:
+                    org_stmt = select(Organization).where(
+                        Organization.id == referrer_member.organization_id
+                    )
+                    org_result = await session.execute(org_stmt)
+                    referrer_org = org_result.scalar_one_or_none()
+                    if referrer_org:
+                        referrer_org.credits_used_this_month = max(
+                            0, referrer_org.credits_used_this_month - 15
+                        )
+                        logger.info(f"Referral bonus: +15 credits to org {referrer_org.id} (referrer: {referrer.email})")
+            except Exception as e:
+                logger.error(f"Error applying referral bonus: {e}")
 
         # Generar tokens de sesión
         access_token = create_access_token(subject=user.id)

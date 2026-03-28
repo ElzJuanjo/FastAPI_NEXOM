@@ -167,7 +167,19 @@ class OpenRouterClient:
         # También buscar en el campo images directo
         msg_images = choice.get("message", {}).get("images", [])
         if msg_images:
-            images.extend(msg_images)
+            for img in msg_images:
+                if isinstance(img, str):
+                    images.append(img)
+                elif isinstance(img, dict):
+                    # Normalizar dict → string base64/URL
+                    url = (
+                        img.get("image_url", {}).get("url")
+                        or img.get("url")
+                        or img.get("b64_json")
+                        or ""
+                    )
+                    if url:
+                        images.append(url)
 
         return {
             "images": images,

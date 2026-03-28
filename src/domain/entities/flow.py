@@ -25,7 +25,6 @@ class Flow(UUIDPk, TimestampMixin, Base):
     status:           Mapped[FlowStatus]  = mapped_column(Enum(FlowStatus), default=FlowStatus.INACTIVE, nullable=False)
     progress_pct:     Mapped[float]       = mapped_column(Float, default=0.0)
     started_at:       Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    estimated_end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     completed_at:     Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     context:          Mapped[Optional[dict]]     = mapped_column(JSONB)
 

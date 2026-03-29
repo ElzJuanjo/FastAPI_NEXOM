@@ -20,13 +20,15 @@ from .base import Base, UUIDPk, TimestampMixin, AssetStatus, LandingSectionType
 class LandingPage(UUIDPk, TimestampMixin, Base):
     __tablename__ = "landing_pages"
 
-    brand_id:      Mapped[str]           = mapped_column(UUID(as_uuid=False), ForeignKey("brands.id", ondelete="CASCADE"), nullable=False)
+    organization_id: Mapped[str]           = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    brand_id:      Mapped[Optional[str]]  = mapped_column(UUID(as_uuid=False), ForeignKey("brands.id", ondelete="SET NULL"), nullable=True)
     name:          Mapped[str]           = mapped_column(String(255), nullable=False)
     campaign:      Mapped[Optional[str]] = mapped_column(String(255))
     status:        Mapped[AssetStatus]   = mapped_column(Enum(AssetStatus), default=AssetStatus.DRAFT, nullable=False)
     published_url: Mapped[Optional[str]] = mapped_column(String(512))
     published_at:  Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+    organization: Mapped["Organization"]          = relationship()
     brand:    Mapped["Brand"]                   = relationship(back_populates="landing_pages")
     sections: Mapped[List["LandingPageSection"]] = relationship(
         back_populates="landing_page",
@@ -36,6 +38,7 @@ class LandingPage(UUIDPk, TimestampMixin, Base):
 
     __table_args__ = (
         Index("ix_landing_pages_brand_id", "brand_id"),
+        Index("ix_landing_pages_org_id", "organization_id"),
     )
 
 

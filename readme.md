@@ -198,7 +198,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 ### Sprint 16 - Historial de conversación
 
-| Archiovo                                 | Propósito                                    |
+| Archivo                                  | Propósito                                    |
 | ---------------------------------------- | --------------------------------------------- |
 | `domain/entities/conversation.py`      | Entidades Conversation y ConversationMessage. |
 | `app/dto/conversation_dto.py`          | DTOs para Conversation.                       |
@@ -209,3 +209,11 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | Archivo                      | Propósito                                                    |
 | ---------------------------- | ------------------------------------------------------------- |
 | `infra/events/progress.py` | Permite emitir eventos SSE desde cualquier punto del backend. |
+
+### Sprint 18, 19 - Flujos v2 + Landing Builder
+
+| Archivo                                     | Propósito                                                                          |
+| ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `app/use_cases/landing_auto_persist.py`   | Se invoca cuando el agente landing_page genera contenido con estructura de landing. |
+| `app/use_cases/landing_html_render.py`    | Landing Page → HTML renderer.                                                      |
+| `app/use_cases/landing_section_parser.py` | Convierte el texto markdown generado por el agente en secciones estructuradas.      |

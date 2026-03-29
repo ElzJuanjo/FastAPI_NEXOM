@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +31,24 @@ class LandingPageSQLAlchemyRepository(LandingPageRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_by_organization(self, org_id: str, brand_id: str | None = None) -> List[LandingPage]:
+        """List landing pages by organization, optionally filtered by brand."""
+        stmt = (
+            select(LandingPage)
+            .options(selectinload(LandingPage.sections))
+            .where(
+                LandingPage.organization_id == org_id,
+                LandingPage.deleted_at.is_(None),
+            )
+        )
+
+        if brand_id:
+            stmt = stmt.where(LandingPage.brand_id == brand_id)
+
+        stmt = stmt.order_by(LandingPage.created_at.desc())
+        result = await self._session.execute(stmt)
+        return list(result.scalars().unique().all())
+
     async def create(self, lp: LandingPage) -> LandingPage:
         self._session.add(lp)
         await self._session.flush()
@@ -42,12 +59,16 @@ class LandingPageSQLAlchemyRepository(LandingPageRepository):
         return lp
 
     async def soft_delete(self, lp_id: str) -> None:
-        stmt = select(LandingPage).where(LandingPage.id == lp_id, LandingPage.deleted_at.is_(None))
-        result = await self._session.execute(stmt)
-        lp = result.scalar_one_or_none()
-        if lp:
-            lp.deleted_at = datetime.now(timezone.utc)
-            await self._session.flush()
+        """Hard delete landing page and its sections."""
+        from sqlalchemy import delete as sa_delete
+        # Delete sections first (cascade should handle it, but be explicit)
+        await self._session.execute(
+            sa_delete(LandingPageSection).where(LandingPageSection.landing_page_id == lp_id)
+        )
+        await self._session.execute(
+            sa_delete(LandingPage).where(LandingPage.id == lp_id)
+        )
+        await self._session.flush()
 
     async def add_section(self, section: LandingPageSection) -> LandingPageSection:
         self._session.add(section)

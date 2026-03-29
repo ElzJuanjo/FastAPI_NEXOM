@@ -142,12 +142,19 @@ class AdPlatform(str, enum.Enum):
 
 class LandingSectionType(str, enum.Enum):
     HERO = "hero"
+    SOCIAL_PROOF = "social_proof"
+    PROBLEM = "problem"
+    SOLUTION = "solution"
     FEATURES = "features"
+    BENEFITS = "benefits"
+    TRANSFORMATION = "transformation"
+    OFFER = "offer"
     TESTIMONIALS = "testimonials"
     PRICING = "pricing"
-    CTA = "cta"
     FAQ = "faq"
+    CTA = "cta"
     GALLERY = "gallery"
+    CUSTOM = "custom"
 
 
 class RecommendationStatus(str, enum.Enum):

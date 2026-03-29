@@ -1,8 +1,8 @@
-"""refactor activity
+"""landings
 
-Revision ID: c495d1b62138
+Revision ID: 6e9c0c665bfd
 Revises: 
-Create Date: 2026-03-27 15:43:49.554096
+Create Date: 2026-03-28 18:01:41.848075
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'c495d1b62138'
+revision: str = '6e9c0c665bfd'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -264,7 +264,8 @@ def upgrade() -> None:
     op.create_index(op.f('ix_flow_steps_deleted_at'), 'flow_steps', ['deleted_at'], unique=False)
     op.create_index('ix_flow_steps_flow_id', 'flow_steps', ['flow_id'], unique=False)
     op.create_table('landing_pages',
-    sa.Column('brand_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('brand_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('campaign', sa.String(length=255), nullable=True),
     sa.Column('status', sa.Enum('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', name='assetstatus'), nullable=False),
@@ -274,11 +275,13 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['brand_id'], ['brands.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['brand_id'], ['brands.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_landing_pages_brand_id', 'landing_pages', ['brand_id'], unique=False)
     op.create_index(op.f('ix_landing_pages_deleted_at'), 'landing_pages', ['deleted_at'], unique=False)
+    op.create_index('ix_landing_pages_org_id', 'landing_pages', ['organization_id'], unique=False)
     op.create_table('products',
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('brand_id', sa.UUID(as_uuid=False), nullable=True),
@@ -347,7 +350,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_creative_batches_deleted_at'), 'creative_batches', ['deleted_at'], unique=False)
     op.create_table('landing_page_sections',
     sa.Column('landing_page_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('section_type', sa.Enum('HERO', 'FEATURES', 'TESTIMONIALS', 'PRICING', 'CTA', 'FAQ', 'GALLERY', name='landingsectiontype'), nullable=False),
+    sa.Column('section_type', sa.Enum('HERO', 'SOCIAL_PROOF', 'PROBLEM', 'SOLUTION', 'FEATURES', 'BENEFITS', 'TRANSFORMATION', 'OFFER', 'TESTIMONIALS', 'PRICING', 'FAQ', 'CTA', 'GALLERY', 'CUSTOM', name='landingsectiontype'), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=True),
     sa.Column('body', sa.Text(), nullable=True),
     sa.Column('cta_text', sa.String(length=255), nullable=True),
@@ -437,6 +440,7 @@ def downgrade() -> None:
     op.drop_index('ix_products_dropi_id', table_name='products')
     op.drop_index(op.f('ix_products_deleted_at'), table_name='products')
     op.drop_table('products')
+    op.drop_index('ix_landing_pages_org_id', table_name='landing_pages')
     op.drop_index(op.f('ix_landing_pages_deleted_at'), table_name='landing_pages')
     op.drop_index('ix_landing_pages_brand_id', table_name='landing_pages')
     op.drop_table('landing_pages')

@@ -274,6 +274,21 @@ async def send_message_stream(
                 except Exception as e:
                     logger.error(f"Error registering agent task: {e}")
 
+            # Auto-persist landing page sections if agent is landing_page
+            landing_page_id = None
+            if agent_type == "landing_page" and response_content and not result.get("error"):
+                try:
+                    from app.use_cases.landing_auto_persist import auto_persist_landing_sections
+                    landing_page_id = await auto_persist_landing_sections(
+                        session=session,
+                        content=response_content,
+                        org_id=org_id,
+                        brand_id=None,
+                        conversation_id=conversation.id,
+                    )
+                except Exception as e:
+                    logger.error(f"Error auto-persisting landing sections: {e}")
+
             await session.commit()
 
             credits_remaining = max(0, plan.max_credits_per_month - organization.credits_used_this_month)
@@ -494,6 +509,20 @@ async def send_message(
             session.add(agent_task)
         except Exception as e:
             logger.error(f"Error registering agent task: {e}")
+
+    # Auto-persist landing page sections if agent is landing_page
+    if agent_type == "landing_page" and response_content and not result.get("error"):
+        try:
+            from app.use_cases.landing_auto_persist import auto_persist_landing_sections
+            await auto_persist_landing_sections(
+                session=session,
+                content=response_content,
+                org_id=org_id,
+                brand_id=None,
+                conversation_id=conversation.id,
+            )
+        except Exception as e:
+            logger.error(f"Error auto-persisting landing sections: {e}")
 
     await session.commit()
 

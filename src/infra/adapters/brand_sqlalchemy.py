@@ -2,7 +2,6 @@
 Implementación SQLAlchemy async del BrandRepository.
 """
 
-from datetime import datetime, timezone
 from typing import Optional, List
 
 from sqlalchemy import select
@@ -46,9 +45,9 @@ class BrandSQLAlchemyRepository(BrandRepository):
         return brand
 
     async def soft_delete(self, brand_id: str) -> None:
-        stmt = select(Brand).where(Brand.id == brand_id, Brand.deleted_at.is_(None))
-        result = await self._session.execute(stmt)
-        brand = result.scalar_one_or_none()
-        if brand:
-            brand.deleted_at = datetime.now(timezone.utc)
-            await self._session.flush()
+        """Hard delete brand. Landing pages with this brand get brand_id=NULL (FK ON DELETE SET NULL)."""
+        from sqlalchemy import delete as sa_delete
+        await self._session.execute(
+            sa_delete(Brand).where(Brand.id == brand_id)
+        )
+        await self._session.flush()

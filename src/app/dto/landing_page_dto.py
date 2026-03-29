@@ -40,7 +40,7 @@ class LandingSectionResponse(BaseModel):
 
 
 class CreateLandingPageRequest(BaseModel):
-    brand_id: str
+    brand_id: Optional[str] = None
     name: str = Field(min_length=2, max_length=255)
     campaign: Optional[str] = None
     sections: Optional[list[CreateLandingSectionRequest]] = None
@@ -50,12 +50,14 @@ class UpdateLandingPageRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=2, max_length=255)
     campaign: Optional[str] = None
     status: Optional[str] = None
+    brand_id: Optional[str] = None
     published_url: Optional[str] = None
 
 
 class LandingPageResponse(BaseModel):
     id: str
-    brand_id: str
+    organization_id: str
+    brand_id: Optional[str] = None
     name: str
     campaign: Optional[str] = None
     status: str
@@ -69,3 +71,7 @@ class LandingPageResponse(BaseModel):
 
 class LandingPageListResponse(BaseModel):
     landing_pages: list[LandingPageResponse]
+
+
+class ReorderSectionsRequest(BaseModel):
+    section_ids: list[str]

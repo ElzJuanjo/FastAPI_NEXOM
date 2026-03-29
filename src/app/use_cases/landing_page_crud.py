@@ -15,8 +15,8 @@ class LandingPageCreate:
     def __init__(self, repo: LandingPageRepository) -> None:
         self._repo = repo
 
-    async def execute(self, brand_id: str, name: str, campaign: str | None = None, sections_data: list[dict] | None = None) -> LandingPage:
-        lp = LandingPage(brand_id=brand_id, name=name, campaign=campaign, status=AssetStatus.DRAFT)
+    async def execute(self, org_id: str, name: str, brand_id: str | None = None, campaign: str | None = None, sections_data: list[dict] | None = None) -> LandingPage:
+        lp = LandingPage(organization_id=org_id, brand_id=brand_id, name=name, campaign=campaign, status=AssetStatus.DRAFT)
         lp = await self._repo.create(lp)
 
         if sections_data:
@@ -44,7 +44,10 @@ class LandingPageUpdate:
         if not lp:
             raise LandingPageNotFoundError(f"LandingPage {lp_id} no encontrada")
         for k, v in kwargs.items():
-            if v is not None:
+            # Allow explicit None for nullable fields (like brand_id)
+            if k == "brand_id":
+                setattr(lp, k, v)  # Can be None or a valid ID
+            elif v is not None:
                 setattr(lp, k, v)
         return await self._repo.update(lp)
 

@@ -14,6 +14,10 @@ class LandingPageRepository(ABC):
         ...
 
     @abstractmethod
+    async def list_by_organization(self, org_id: str, brand_id: str | None = None) -> List[LandingPage]:
+        ...
+
+    @abstractmethod
     async def create(self, lp: LandingPage) -> LandingPage:
         ...
 

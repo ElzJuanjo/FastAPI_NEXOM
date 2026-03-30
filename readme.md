@@ -217,3 +217,4 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/landing_auto_persist.py`   | Se invoca cuando el agente landing_page genera contenido con estructura de landing. |
 | `app/use_cases/landing_html_render.py`    | Landing Page → HTML renderer.                                                      |
 | `app/use_cases/landing_section_parser.py` | Convierte el texto markdown generado por el agente en secciones estructuradas.      |
+| `app/use_cases/landing_export.py`         | Landing Page → Shopify Liquid & WordPress exporters.                               |

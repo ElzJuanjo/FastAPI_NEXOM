@@ -182,6 +182,50 @@ async def render_landing_page(
     return HTMLResponse(content=html)
 
 
+@router.get("/{lp_id}/export/shopify", response_class=HTMLResponse)
+async def export_shopify(
+    lp_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Export the landing page as Shopify Liquid template."""
+    from app.use_cases.landing_export import LandingExporter, LandingRenderError
+    from infra.adapters.landing_page_sqlalchemy import LandingPageSQLAlchemyRepository
+    from infra.adapters.brand_sqlalchemy import BrandSQLAlchemyRepository
+
+    exporter = LandingExporter(
+        lp_repo=LandingPageSQLAlchemyRepository(session),
+        brand_repo=BrandSQLAlchemyRepository(session),
+    )
+    try:
+        content = await exporter.export_shopify(lp_id)
+    except LandingRenderError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return HTMLResponse(content=content, media_type="text/plain")
+
+
+@router.get("/{lp_id}/export/wordpress", response_class=HTMLResponse)
+async def export_wordpress(
+    lp_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Export the landing page as WordPress-compatible HTML block."""
+    from app.use_cases.landing_export import LandingExporter, LandingRenderError
+    from infra.adapters.landing_page_sqlalchemy import LandingPageSQLAlchemyRepository
+    from infra.adapters.brand_sqlalchemy import BrandSQLAlchemyRepository
+
+    exporter = LandingExporter(
+        lp_repo=LandingPageSQLAlchemyRepository(session),
+        brand_repo=BrandSQLAlchemyRepository(session),
+    )
+    try:
+        content = await exporter.export_wordpress(lp_id)
+    except LandingRenderError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return HTMLResponse(content=content, media_type="text/plain")
+
+
 @router.post("/{lp_id}/reorder", response_model=LandingPageResponse)
 async def reorder_sections(
     lp_id: str,

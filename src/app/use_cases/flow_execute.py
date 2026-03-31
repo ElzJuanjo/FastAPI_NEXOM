@@ -183,6 +183,22 @@ class FlowExecute:
                     except Exception as e:
                         import logging
                         logging.getLogger(__name__).error(f"Error auto-persisting flow landing: {e}")
+                        
+            # Auto-persist brand identity (branding steps)
+            if step.agent_type == "branding" and output["status"] == "completed":
+                br_content = output.get("content", "")
+                if br_content and len(br_content) > 300:
+                    try:
+                        from app.use_cases.brand_auto_persist import auto_persist_brand_identity
+                        session = self._flow_repo._session
+                        await auto_persist_brand_identity(
+                            session=session,
+                            content=br_content,
+                            org_id=flow.organization_id,
+                        )
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"Error auto-persisting flow brand: {e}")
 
             total_tokens += output.get("tokens_total", 0)
             total_duration += output.get("duration_ms", 0)

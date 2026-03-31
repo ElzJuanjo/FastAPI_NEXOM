@@ -1,8 +1,8 @@
-"""landings
+"""branding
 
-Revision ID: 6e9c0c665bfd
+Revision ID: 12bacd09aa53
 Revises: 
-Create Date: 2026-03-28 18:01:41.848075
+Create Date: 2026-03-30 21:36:03.482066
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '6e9c0c665bfd'
+revision: str = '12bacd09aa53'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -103,6 +103,7 @@ def upgrade() -> None:
     sa.Column('typography', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='{"heading_font": "Inter", "body_font": "Inter", "heading_weight": "700", "body_weight": "400"}'),
     sa.Column('tones', postgresql.ARRAY(sa.String()), nullable=True, comment='["Profesional", "Innovador", "Empatico", "Cientifico"]'),
     sa.Column('key_messages', postgresql.ARRAY(sa.String()), nullable=True, comment='["Formulas respaldadas por dermatologia clinica", "Resultados visibles en 14 dias"]'),
+    sa.Column('brand_identity', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Extended brand identity: archetype, values, mission, vision, yes_words, no_words, logo_concept'),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

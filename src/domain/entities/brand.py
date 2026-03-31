@@ -29,6 +29,9 @@ class Brand(UUIDPk, TimestampMixin, Base):
         comment='["Profesional", "Innovador", "Empatico", "Cientifico"]')
     key_messages:   Mapped[Optional[list]] = mapped_column(ARRAY(String),
         comment='["Formulas respaldadas por dermatologia clinica", "Resultados visibles en 14 dias"]')
+    
+    brand_identity: Mapped[Optional[dict]] = mapped_column(JSONB,
+        comment='Extended brand identity: archetype, values, mission, vision, yes_words, no_words, logo_concept')
 
     organization:  Mapped["Organization"]          = relationship(back_populates="brands")
     products:      Mapped[List["Product"]]         = relationship(back_populates="brand")

@@ -15,6 +15,7 @@ class CreateBrandRequest(BaseModel):
     typography: Optional[dict] = None
     tones: Optional[list[str]] = None
     key_messages: Optional[list[str]] = None
+    brand_identity: Optional[dict] = None
 
 
 class UpdateBrandRequest(BaseModel):
@@ -25,6 +26,7 @@ class UpdateBrandRequest(BaseModel):
     typography: Optional[dict] = None
     tones: Optional[list[str]] = None
     key_messages: Optional[list[str]] = None
+    brand_identity: Optional[dict] = None
 
 
 class BrandResponse(BaseModel):
@@ -37,6 +39,7 @@ class BrandResponse(BaseModel):
     typography: Optional[dict] = None
     tones: Optional[list[str]] = None
     key_messages: Optional[list[str]] = None
+    brand_identity: Optional[dict] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -288,6 +288,19 @@ async def send_message_stream(
                     )
                 except Exception as e:
                     logger.error(f"Error auto-persisting landing sections: {e}")
+                    
+            # Auto-persist brand identity if agent is branding
+            if agent_type == "branding" and response_content and not result.get("error"):
+                try:
+                    from app.use_cases.brand_auto_persist import auto_persist_brand_identity
+                    await auto_persist_brand_identity(
+                        session=session,
+                        content=response_content,
+                        org_id=org_id,
+                        conversation_id=conversation.id,
+                    )
+                except Exception as e:
+                    logger.error(f"Error auto-persisting brand identity: {e}")
 
             await session.commit()
 
@@ -523,6 +536,19 @@ async def send_message(
             )
         except Exception as e:
             logger.error(f"Error auto-persisting landing sections: {e}")
+
+    # Auto-persist brand identity if agent is branding
+    if agent_type == "branding" and response_content and not result.get("error"):
+        try:
+            from app.use_cases.brand_auto_persist import auto_persist_brand_identity
+            await auto_persist_brand_identity(
+                session=session,
+                content=response_content,
+                org_id=org_id,
+                conversation_id=conversation.id,
+            )
+        except Exception as e:
+            logger.error(f"Error auto-persisting brand identity: {e}")
 
     await session.commit()
 

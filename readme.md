@@ -218,3 +218,11 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/landing_html_render.py`    | Landing Page → HTML renderer.                                                      |
 | `app/use_cases/landing_section_parser.py` | Convierte el texto markdown generado por el agente en secciones estructuradas.      |
 | `app/use_cases/landing_export.py`         | Landing Page → Shopify Liquid & WordPress exporters.                               |
+
+### Sprint 20 - Branding Builder
+
+| Archivo                                 | Propósito                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| `app/use_cases/brand_templates.py`    | Templates de brand identity predefinidos por nicho/industria.            |
+| `app/use_cases/brand_export_pdf.py`   | Genera un documento visual con identidad de marca completa.              |
+| `app/use_cases/brand_auto_persist.py` | Auto-persistencia de Brand Identity desde output del agente de branding. |

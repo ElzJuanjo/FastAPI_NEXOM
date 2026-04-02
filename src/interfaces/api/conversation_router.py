@@ -301,6 +301,20 @@ async def send_message_stream(
                     )
                 except Exception as e:
                     logger.error(f"Error auto-persisting brand identity: {e}")
+                    
+            # Auto-persist copy assets if agent is copywriting or ads
+            if agent_type in ("copywriting", "ads") and response_content and not result.get("error"):
+                try:
+                    from app.use_cases.copy_auto_persist import auto_persist_copy_assets
+                    await auto_persist_copy_assets(
+                        session=session,
+                        content=response_content,
+                        org_id=org_id,
+                        brand_id=None,
+                        conversation_id=conversation.id,
+                    )
+                except Exception as e:
+                    logger.error(f"Error auto-persisting copy assets: {e}")
 
             await session.commit()
 
@@ -549,6 +563,20 @@ async def send_message(
             )
         except Exception as e:
             logger.error(f"Error auto-persisting brand identity: {e}")
+            
+    # Auto-persist copy assets if agent is copywriting or ads
+    if agent_type in ("copywriting", "ads") and response_content and not result.get("error"):
+        try:
+            from app.use_cases.copy_auto_persist import auto_persist_copy_assets
+            await auto_persist_copy_assets(
+                session=session,
+                content=response_content,
+                org_id=org_id,
+                brand_id=None,
+                conversation_id=conversation.id,
+            )
+        except Exception as e:
+            logger.error(f"Error auto-persisting copy assets: {e}")
 
     await session.commit()
 

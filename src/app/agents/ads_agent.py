@@ -52,7 +52,17 @@ CRITICAL INTERACTION RULES:
 - If information is missing, ask specific questions in one message, then deliver on the next.
 - If the user confirms, deliver the full campaign. Don't re-ask.
 - EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
-- NEVER repeat or regenerate content you already delivered. If the user says "continue" or confirms, deliver NEW content that advances from where you left off."""
+- NEVER repeat or regenerate content you already delivered. If the user says "continue" or confirms, deliver NEW content that advances from where you left off.
+
+CRITICAL OUTPUT RULE:
+At the END of every response, you MUST include a hidden JSON block with ALL ad copy pieces you generated in this response.
+Format: <!--COPY_JSON [{"name": "Short descriptive name", "copy_type": "ad", "platform": "meta_ads|google_ads|tiktok_ads", "tone": "tone used", "content": "The main ad copy text", "variations": [{"content": "Variation 1", "order": 1}]}] -->
+Rules:
+- Include EVERY distinct ad copy piece as a separate object in the array
+- copy_type should be "ad" for ad campaigns, "headline" for headlines, "cta" for call-to-action texts
+- platform must match the target platform: meta_ads, google_ads, or tiktok_ads
+- variations array is optional
+- The JSON must be valid. Do not include markdown inside the JSON values."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         parts = [f"Request: {user_input}\n"]

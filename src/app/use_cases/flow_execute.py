@@ -199,6 +199,23 @@ class FlowExecute:
                     except Exception as e:
                         import logging
                         logging.getLogger(__name__).error(f"Error auto-persisting flow brand: {e}")
+                        
+            # Auto-persist copy assets (copywriting and ads steps)
+            if step.agent_type in ("copywriting", "ads") and output["status"] == "completed":
+                copy_content = output.get("content", "")
+                if copy_content:
+                    try:
+                        from app.use_cases.copy_auto_persist import auto_persist_copy_assets
+                        session = self._flow_repo._session
+                        await auto_persist_copy_assets(
+                            session=session,
+                            content=copy_content,
+                            org_id=flow.organization_id,
+                            brand_id=None,
+                        )
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"Error auto-persisting flow copy assets: {e}")
 
             total_tokens += output.get("tokens_total", 0)
             total_duration += output.get("duration_ms", 0)

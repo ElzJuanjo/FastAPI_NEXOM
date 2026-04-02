@@ -1,8 +1,8 @@
-"""branding
+"""sprint 21
 
-Revision ID: 12bacd09aa53
+Revision ID: 1deea3bfd20d
 Revises: 
-Create Date: 2026-03-30 21:36:03.482066
+Create Date: 2026-04-01 12:31:03.148027
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '12bacd09aa53'
+revision: str = '1deea3bfd20d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -225,25 +225,6 @@ def upgrade() -> None:
     )
     op.create_index('ix_conv_analyses_brand_date', 'conversion_analyses', ['brand_id', 'analyzed_at'], unique=False)
     op.create_index(op.f('ix_conversion_analyses_deleted_at'), 'conversion_analyses', ['deleted_at'], unique=False)
-    op.create_table('copy_assets',
-    sa.Column('brand_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('copy_type', sa.Enum('AD', 'EMAIL', 'SOCIAL', 'HEADLINE', 'CTA', 'BODY', name='copytype'), nullable=False),
-    sa.Column('platform', sa.Enum('META_ADS', 'GOOGLE_ADS', 'TIKTOK_ADS', 'INSTAGRAM', 'LANDING_PAGE', 'EMAIL_MARKETING', name='adplatform'), nullable=True),
-    sa.Column('tone', sa.String(length=100), nullable=True),
-    sa.Column('content', sa.Text(), nullable=False),
-    sa.Column('status', sa.Enum('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', name='assetstatus'), nullable=False),
-    sa.Column('variations', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='[{"content": "Variacion 1...", "order": 1}, {"content": "Variacion 2...", "order": 2}]'),
-    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['brand_id'], ['brands.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_copy_assets_brand_type', 'copy_assets', ['brand_id', 'copy_type'], unique=False)
-    op.create_index(op.f('ix_copy_assets_deleted_at'), 'copy_assets', ['deleted_at'], unique=False)
-    op.create_index('ix_copy_assets_status', 'copy_assets', ['status'], unique=False)
     op.create_table('flow_steps',
     sa.Column('flow_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
@@ -330,6 +311,30 @@ def upgrade() -> None:
     op.create_index(op.f('ix_agent_tasks_deleted_at'), 'agent_tasks', ['deleted_at'], unique=False)
     op.create_index('ix_agent_tasks_org_id', 'agent_tasks', ['organization_id'], unique=False)
     op.create_index('ix_agent_tasks_status', 'agent_tasks', ['status'], unique=False)
+    op.create_table('copy_assets',
+    sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('brand_id', sa.UUID(as_uuid=False), nullable=True),
+    sa.Column('product_id', sa.UUID(as_uuid=False), nullable=True),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('copy_type', sa.Enum('AD', 'EMAIL', 'SOCIAL', 'HEADLINE', 'CTA', 'BODY', name='copytype'), nullable=False),
+    sa.Column('platform', sa.Enum('META_ADS', 'GOOGLE_ADS', 'TIKTOK_ADS', 'INSTAGRAM', 'LANDING_PAGE', 'EMAIL_MARKETING', name='adplatform'), nullable=True),
+    sa.Column('tone', sa.String(length=100), nullable=True),
+    sa.Column('content', sa.Text(), nullable=False),
+    sa.Column('status', sa.Enum('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', name='assetstatus'), nullable=False),
+    sa.Column('variations', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='[{"content": "Variacion 1...", "order": 1}, {"content": "Variacion 2...", "order": 2}]'),
+    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['brand_id'], ['brands.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['product_id'], ['products.id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_copy_assets_brand_type', 'copy_assets', ['brand_id', 'copy_type'], unique=False)
+    op.create_index(op.f('ix_copy_assets_deleted_at'), 'copy_assets', ['deleted_at'], unique=False)
+    op.create_index('ix_copy_assets_org_id', 'copy_assets', ['organization_id'], unique=False)
+    op.create_index('ix_copy_assets_status', 'copy_assets', ['status'], unique=False)
     op.create_table('creative_batches',
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('product_id', sa.UUID(as_uuid=False), nullable=True),
@@ -431,6 +436,11 @@ def downgrade() -> None:
     op.drop_table('landing_page_sections')
     op.drop_index(op.f('ix_creative_batches_deleted_at'), table_name='creative_batches')
     op.drop_table('creative_batches')
+    op.drop_index('ix_copy_assets_status', table_name='copy_assets')
+    op.drop_index('ix_copy_assets_org_id', table_name='copy_assets')
+    op.drop_index(op.f('ix_copy_assets_deleted_at'), table_name='copy_assets')
+    op.drop_index('ix_copy_assets_brand_type', table_name='copy_assets')
+    op.drop_table('copy_assets')
     op.drop_index('ix_agent_tasks_status', table_name='agent_tasks')
     op.drop_index('ix_agent_tasks_org_id', table_name='agent_tasks')
     op.drop_index(op.f('ix_agent_tasks_deleted_at'), table_name='agent_tasks')
@@ -448,10 +458,6 @@ def downgrade() -> None:
     op.drop_index('ix_flow_steps_flow_id', table_name='flow_steps')
     op.drop_index(op.f('ix_flow_steps_deleted_at'), table_name='flow_steps')
     op.drop_table('flow_steps')
-    op.drop_index('ix_copy_assets_status', table_name='copy_assets')
-    op.drop_index(op.f('ix_copy_assets_deleted_at'), table_name='copy_assets')
-    op.drop_index('ix_copy_assets_brand_type', table_name='copy_assets')
-    op.drop_table('copy_assets')
     op.drop_index(op.f('ix_conversion_analyses_deleted_at'), table_name='conversion_analyses')
     op.drop_index('ix_conv_analyses_brand_date', table_name='conversion_analyses')
     op.drop_table('conversion_analyses')

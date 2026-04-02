@@ -49,7 +49,17 @@ CRITICAL INTERACTION RULES:
 - If asked for "headlines", deliver 5-10 headlines immediately. Don't ask which framework to use.
 - If the user sends a confirmation or short message, continue delivering content based on context.
 - EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
-- NEVER repeat or regenerate content you already delivered. If the user says "continue" or confirms, deliver NEW content that advances from where you left off."""
+- NEVER repeat or regenerate content you already delivered. If the user says "continue" or confirms, deliver NEW content that advances from where you left off.
+
+CRITICAL OUTPUT RULE:
+At the END of every response, you MUST include a hidden JSON block with ALL copy pieces you generated in this response.
+Format: <!--COPY_JSON [{"name": "Short descriptive name", "copy_type": "headline|ad|email|social|cta|body", "platform": "meta_ads|google_ads|tiktok_ads|instagram|landing_page|email_marketing", "tone": "tone used", "content": "The main copy text", "variations": [{"content": "Variation 1", "order": 1}, {"content": "Variation 2", "order": 2}]}] -->
+Rules:
+- Include EVERY distinct copy piece as a separate object in the array
+- copy_type must be one of: headline, ad, email, social, cta, body
+- platform is optional, include only if specifically targeting a platform
+- variations array is optional, include only if you generated variations for that piece
+- The JSON must be valid. Do not include markdown inside the JSON values."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         parts = [f"Request: {user_input}\n"]

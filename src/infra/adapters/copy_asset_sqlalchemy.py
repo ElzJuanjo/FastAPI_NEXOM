@@ -1,6 +1,5 @@
-from datetime import datetime, timezone
 from typing import Optional, List
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.entities.copy_asset import CopyAsset
 from domain.repositories.copy_asset_repository import CopyAssetRepository
@@ -11,12 +10,28 @@ class CopyAssetSQLAlchemyRepository(CopyAssetRepository):
         self._session = session
 
     async def get_by_id(self, asset_id: str) -> Optional[CopyAsset]:
-        stmt = select(CopyAsset).where(CopyAsset.id == asset_id, CopyAsset.deleted_at.is_(None))
+        stmt = select(CopyAsset).where(CopyAsset.id == asset_id)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def list_by_brand(self, brand_id: str) -> List[CopyAsset]:
-        stmt = select(CopyAsset).where(CopyAsset.brand_id == brand_id, CopyAsset.deleted_at.is_(None)).order_by(CopyAsset.created_at.desc())
+    async def list_by_organization(
+        self,
+        org_id: str,
+        copy_type: str | None = None,
+        platform: str | None = None,
+        status: str | None = None,
+        brand_id: str | None = None,
+    ) -> List[CopyAsset]:
+        stmt = select(CopyAsset).where(CopyAsset.organization_id == org_id)
+        if copy_type:
+            stmt = stmt.where(CopyAsset.copy_type == copy_type)
+        if platform:
+            stmt = stmt.where(CopyAsset.platform == platform)
+        if status:
+            stmt = stmt.where(CopyAsset.status == status)
+        if brand_id:
+            stmt = stmt.where(CopyAsset.brand_id == brand_id)
+        stmt = stmt.order_by(CopyAsset.created_at.desc())
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
@@ -29,8 +44,6 @@ class CopyAssetSQLAlchemyRepository(CopyAssetRepository):
         await self._session.flush()
         return asset
 
-    async def soft_delete(self, asset_id: str) -> None:
-        asset = await self.get_by_id(asset_id)
-        if asset:
-            asset.deleted_at = datetime.now(timezone.utc)
-            await self._session.flush()
+    async def delete(self, asset_id: str) -> None:
+        stmt = sa_delete(CopyAsset).where(CopyAsset.id == asset_id)
+        await self._session.execute(stmt)

@@ -30,6 +30,7 @@ class Product(UUIDPk, TimestampMixin, Base):
     organization: Mapped["Organization"]   = relationship(back_populates="products")
     brand:        Mapped[Optional["Brand"]] = relationship(back_populates="products")
     creatives:    Mapped[List["Creative"]]  = relationship(back_populates="product")
+    copy_assets:  Mapped[List["CopyAsset"]]  = relationship(back_populates="product")
 
     __table_args__ = (
         Index("ix_products_org_id",    "organization_id"),

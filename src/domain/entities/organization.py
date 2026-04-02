@@ -36,6 +36,7 @@ class Organization(UUIDPk, TimestampMixin, Base):
     products:      Mapped[List["Product"]]             = relationship(back_populates="organization")
     agent_tasks:   Mapped[List["AgentTask"]]          = relationship(back_populates="organization")
     flows:         Mapped[List["Flow"]]               = relationship(back_populates="organization")
+    copy_assets:   Mapped[List["CopyAsset"]]          = relationship(back_populates="organization")
     
     __table_args__ = (
         Index("ix_organizations_slug", "slug"),

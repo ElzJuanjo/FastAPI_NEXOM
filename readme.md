@@ -236,3 +236,4 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/copy_auto_persist.py`                | Auto-persistencia de Copy Assets desde output de agentes copywriting y ads. |
 | `app/use_cases/copy_asset_crud.py`                  | Casos de uso CRUD para CopyAsset.                                           |
 | `app/dto/copy_asset_dto.py`                         | DTOs para CopyAsset.                                                        |
+| `app/use_cases/content_sanitizer.py`                | Sanitiza el content del agente antes de entregarlo al usuario final.        |

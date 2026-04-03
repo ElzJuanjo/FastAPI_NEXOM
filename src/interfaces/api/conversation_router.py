@@ -29,6 +29,7 @@ from interfaces.dependencies.org_membership import get_current_org, get_current_
 
 from fastapi.responses import StreamingResponse
 from infra.events.progress import ProgressEmitter, ProgressEvent
+from app.use_cases.content_sanitizer import strip_internal_json
 import asyncio
 import json
 
@@ -225,7 +226,8 @@ async def send_message_stream(
             yield emitter.to_sse(ProgressEvent(stage="saving", pct=92, message="Saving to history..."))
 
             # Build response
-            response_content = result.get("content") or result.get("error") or ""
+            response_content_raw = result.get("content") or result.get("error") or ""
+            response_content = strip_internal_json(response_content_raw)
             agent_type = result.get("selected_agent")
 
             total_credits = get_credit_cost(agent_type or "general_assistant")
@@ -276,12 +278,12 @@ async def send_message_stream(
 
             # Auto-persist landing page sections if agent is landing_page
             landing_page_id = None
-            if agent_type == "landing_page" and response_content and not result.get("error"):
+            if agent_type == "landing_page" and response_content_raw and not result.get("error"):
                 try:
                     from app.use_cases.landing_auto_persist import auto_persist_landing_sections
                     landing_page_id = await auto_persist_landing_sections(
                         session=session,
-                        content=response_content,
+                        content=response_content_raw,
                         org_id=org_id,
                         brand_id=None,
                         conversation_id=conversation.id,
@@ -290,12 +292,12 @@ async def send_message_stream(
                     logger.error(f"Error auto-persisting landing sections: {e}")
                     
             # Auto-persist brand identity if agent is branding
-            if agent_type == "branding" and response_content and not result.get("error"):
+            if agent_type == "branding" and response_content_raw and not result.get("error"):
                 try:
                     from app.use_cases.brand_auto_persist import auto_persist_brand_identity
                     await auto_persist_brand_identity(
                         session=session,
-                        content=response_content,
+                        content=response_content_raw,
                         org_id=org_id,
                         conversation_id=conversation.id,
                     )
@@ -303,12 +305,12 @@ async def send_message_stream(
                     logger.error(f"Error auto-persisting brand identity: {e}")
                     
             # Auto-persist copy assets if agent is copywriting or ads
-            if agent_type in ("copywriting", "ads") and response_content and not result.get("error"):
+            if agent_type in ("copywriting", "ads") and response_content_raw and not result.get("error"):
                 try:
                     from app.use_cases.copy_auto_persist import auto_persist_copy_assets
                     await auto_persist_copy_assets(
                         session=session,
-                        content=response_content,
+                        content=response_content_raw,
                         org_id=org_id,
                         brand_id=None,
                         conversation_id=conversation.id,
@@ -485,7 +487,8 @@ async def send_message(
             s3_urls = normalized
 
     # Construir respuesta del assistant
-    response_content = result.get("content") or result.get("error") or ""
+    response_content_raw = result.get("content") or result.get("error") or ""
+    response_content = strip_internal_json(response_content_raw)
     agent_type = result.get("selected_agent") or body.agent_type
 
     # Cobrar créditos
@@ -538,12 +541,12 @@ async def send_message(
             logger.error(f"Error registering agent task: {e}")
 
     # Auto-persist landing page sections if agent is landing_page
-    if agent_type == "landing_page" and response_content and not result.get("error"):
+    if agent_type == "landing_page" and response_content_raw and not result.get("error"):
         try:
             from app.use_cases.landing_auto_persist import auto_persist_landing_sections
             await auto_persist_landing_sections(
                 session=session,
-                content=response_content,
+                content=response_content_raw,
                 org_id=org_id,
                 brand_id=None,
                 conversation_id=conversation.id,
@@ -552,12 +555,12 @@ async def send_message(
             logger.error(f"Error auto-persisting landing sections: {e}")
 
     # Auto-persist brand identity if agent is branding
-    if agent_type == "branding" and response_content and not result.get("error"):
+    if agent_type == "branding" and response_content_raw and not result.get("error"):
         try:
             from app.use_cases.brand_auto_persist import auto_persist_brand_identity
             await auto_persist_brand_identity(
                 session=session,
-                content=response_content,
+                content=response_content_raw,
                 org_id=org_id,
                 conversation_id=conversation.id,
             )
@@ -565,12 +568,12 @@ async def send_message(
             logger.error(f"Error auto-persisting brand identity: {e}")
             
     # Auto-persist copy assets if agent is copywriting or ads
-    if agent_type in ("copywriting", "ads") and response_content and not result.get("error"):
+    if agent_type in ("copywriting", "ads") and response_content_raw and not result.get("error"):
         try:
             from app.use_cases.copy_auto_persist import auto_persist_copy_assets
             await auto_persist_copy_assets(
                 session=session,
-                content=response_content,
+                content=response_content_raw,
                 org_id=org_id,
                 brand_id=None,
                 conversation_id=conversation.id,

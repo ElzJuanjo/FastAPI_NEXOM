@@ -14,6 +14,7 @@ from domain.entities.agent import AgentTask
 from app.orchestration.flow_state import FlowExecutionState
 from app.orchestration.flow_executor import execute_flow
 from app.agents.credit_costs import get_credit_cost, estimate_flow_credits
+from app.use_cases.content_sanitizer import strip_internal_json
 from domain.entities.conversation import Conversation, ConversationMessage
 
 
@@ -273,11 +274,11 @@ class FlowExecute:
                 )
                 session.add(user_msg)
 
-                # Assistant message: the result
+                # Assistant message: the result (clean for user display)
                 assistant_msg = ConversationMessage(
                     conversation_id=conversation.id,
                     role="assistant",
-                    content=content,
+                    content=strip_internal_json(content),
                     agent_type=agent_type,
                     meta_data={
                         "flow_id": flow_id,
@@ -315,7 +316,7 @@ class FlowExecute:
                 sid: {
                     "agent_type": out.get("agent_type"),
                     "status": out.get("status"),
-                    "content_preview": (out.get("content") or "")[:500],
+                    "content_preview": strip_internal_json((out.get("content") or ""))[:500],
                     "tokens": out.get("tokens_total", 0),
                     "duration_ms": out.get("duration_ms", 0),
                     "error": out.get("error"),

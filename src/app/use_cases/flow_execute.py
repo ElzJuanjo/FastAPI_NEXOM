@@ -218,6 +218,24 @@ class FlowExecute:
                         import logging
                         logging.getLogger(__name__).error(f"Error auto-persisting flow copy assets: {e}")
 
+            # Auto-persist winner products (product_search steps)
+            if step.agent_type == "product_search" and output["status"] == "completed":
+                ps_content = output.get("content", "")
+                if ps_content:
+                    try:
+                        from app.use_cases.product_auto_persist import auto_persist_winner_products
+                        session = self._flow_repo._session
+                        raw_scraped = output.get("scraped_sources") or {}
+                        await auto_persist_winner_products(
+                            session=session,
+                            content=ps_content,
+                            org_id=flow.organization_id,
+                            raw_scraped_data=raw_scraped,
+                        )
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"Error auto-persisting flow winner products: {e}")
+
             total_tokens += output.get("tokens_total", 0)
             total_duration += output.get("duration_ms", 0)
 

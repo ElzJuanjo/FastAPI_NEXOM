@@ -21,7 +21,6 @@ from app.dto.conversation_dto import (
     ConversationMessageResponse, SendMessageRequest, SendMessageResponse,
     UpdateConversationRequest,
 )
-from app.dto.orchestrator_dto import OrchestratorResponse
 from app.orchestration.orchestrator import run_orchestrator
 from app.agents.credit_costs import get_credit_cost, ROUTER_CREDIT_COST
 from interfaces.dependencies.auth_dependencies import get_current_user_id
@@ -318,6 +317,20 @@ async def send_message_stream(
                 except Exception as e:
                     logger.error(f"Error auto-persisting copy assets: {e}")
 
+            # Auto-persist winner products if agent is product_search
+            if agent_type == "product_search" and response_content_raw and not result.get("error"):
+                try:
+                    from app.use_cases.product_auto_persist import auto_persist_winner_products
+                    await auto_persist_winner_products(
+                        session=session,
+                        content=response_content_raw,
+                        org_id=org_id,
+                        conversation_id=conversation.id,
+                        raw_scraped_data=result.get("raw_scraped_data"),
+                    )
+                except Exception as e:
+                    logger.error(f"Error auto-persisting winner products: {e}")
+
             await session.commit()
 
             credits_remaining = max(0, plan.max_credits_per_month - organization.credits_used_this_month)
@@ -580,6 +593,20 @@ async def send_message(
             )
         except Exception as e:
             logger.error(f"Error auto-persisting copy assets: {e}")
+
+    # Auto-persist winner products if agent is product_search
+    if agent_type == "product_search" and response_content_raw and not result.get("error"):
+        try:
+            from app.use_cases.product_auto_persist import auto_persist_winner_products
+            await auto_persist_winner_products(
+                session=session,
+                content=response_content_raw,
+                org_id=org_id,
+                conversation_id=conversation.id,
+                raw_scraped_data=result.get("raw_scraped_data"),
+            )
+        except Exception as e:
+            logger.error(f"Error auto-persisting winner products: {e}")
 
     await session.commit()
 

@@ -16,7 +16,7 @@ import re
 # Todos los patrones de bloques JSON internos que usan los agentes.
 # Formato: <!-- TAG_JSON {..} --> o <!-- TAG_JSON [{..}] -->
 _INTERNAL_JSON_PATTERN = re.compile(
-    r'\s*<!--\s*(?:BRAND_JSON|COPY_JSON|LANDING_JSON)\s*[\[{].*?[\]}]\s*-->\s*',
+    r'\s*<!--\s*(?:BRAND_JSON|COPY_JSON|LANDING_JSON|PRODUCT_JSON)\s*[\[{].*?[\]}]\s*-->\s*',
     re.DOTALL,
 )
 

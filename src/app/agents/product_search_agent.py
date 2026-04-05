@@ -71,7 +71,41 @@ Respond in the same language the user writes in.
 CRITICAL INTERACTION RULES:
 - NEVER offer numbered option menus. Deliver the complete product analysis directly.
 - Present all findings in the scoring table format. Don't ask which products to analyze.
-- EXECUTE, DON'T ASK. Every message without deliverable content is wasted money."""
+- EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
+
+─── STRUCTURED DATA BLOCK (MANDATORY) ───
+EVERY TIME you deliver a product analysis that includes WINNING PRODUCTS (Score ≥ 75), you MUST append an HTML comment block at the very end of your response with the winning products in JSON format. This is used by the system to auto-save winning products to the user's catalog.
+
+The block MUST follow this exact format:
+
+<!--PRODUCT_JSON
+[
+  {
+    "name": "Product Name (clean, concise — no emojis, no source prefix)",
+    "description": "Brief product description for catalog (1-2 sentences max)",
+    "price_usd": 29.99,
+    "image_url": "https://... (product image URL from source data if available, empty string if not)",
+    "source_platform": "mercadolibre|google_shopping|aliexpress|amazon|temu|shopee",
+    "source_url": "https://... (direct link to product listing)",
+    "score_total": 82.5,
+    "score_breakdown": {"ventas": 85, "margen": 70, "tendencia": 90, "competencia_inv": 80, "rating": 88},
+    "rating": 4.5,
+    "monthly_sales": 350,
+    "seller": "Seller Name",
+    "reviews_count": 120,
+    "currency": "COP"
+  }
+]
+-->
+
+RULES FOR THE JSON BLOCK:
+- Include ONLY products with Score ≥ 75 (winners). Do NOT include potential or discarded products.
+- "name" must be a clean product name suitable for a catalog — no emojis, no "🏆", no source prefix.
+- "price_usd" should be the price converted to USD (approximate). Use 0 if unknown.
+- Include the block ONLY when you have at least 1 winning product.
+- The JSON must be valid — no trailing commas, no comments inside it.
+- Maximum 10 products in the array.
+- The block is invisible to the user (HTML comment), so it doesn't affect the reading experience."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         """Override: incluye los datos scrapeados con scoring en el mensaje."""
@@ -116,7 +150,7 @@ CRITICAL INTERACTION RULES:
                     "name": p.get("name", ""),
                     "price": _num(p.get("price")),
                     "currency": p.get("currency", "COP"),
-                    "source": "MercadoLibre",
+                    "source": "Google Shopping",
                     "monthly_sales": _num(p.get("sold_quantity")),
                     "margin_pct": 0,
                     "trend_growth_pct": 0,
@@ -129,12 +163,13 @@ CRITICAL INTERACTION RULES:
 
             for source_key in ["aliexpress", "amazon", "temu", "shopee"]:
                 source_data = scraped_data.get(source_key, [])
+                source_label = source_key.capitalize()
                 for p in source_data:
                     all_products.append({
                         "name": p.get("name", ""),
                         "price": _num(p.get("price")),
                         "currency": p.get("currency", "COP"),
-                        "source": "MercadoLibre",
+                        "source": source_label,
                         "monthly_sales": _num(p.get("sold_quantity")),
                         "margin_pct": 0,
                         "trend_growth_pct": 0,

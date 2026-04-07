@@ -219,14 +219,14 @@ async def forgot_password(
             reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
             await send_email(
                 to=user.email,
-                subject="Restablecer contraseña — NexOS",
+                subject="Restablecer contraseña — NEXOM",
                 html_body=f"""
                 <h2>Hola {user.full_name},</h2>
                 <p>Recibimos una solicitud para restablecer tu contraseña.</p>
                 <p><a href="{reset_link}" style="display:inline-block;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">Restablecer contraseña</a></p>
                 <p>Este enlace expira en 15 minutos.</p>
                 <p>Si no solicitaste este cambio, ignora este correo.</p>
-                <br><p>— Equipo NexOS</p>
+                <br><p>— Equipo NEXOM</p>
                 """,
             )
         except Exception as e:
@@ -577,7 +577,7 @@ async def setup_2fa(
 
     # Generar URL para apps de autenticación
     totp = pyotp.TOTP(secret)
-    otpauth_url = totp.provisioning_uri(name=user.email, issuer_name="NexOS")
+    otpauth_url = totp.provisioning_uri(name=user.email, issuer_name="NEXOM")
 
     # Generar QR como base64
     qr = qrcode.make(otpauth_url)

@@ -5,7 +5,7 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     DATABASE_URL: str = Field(..., description="PostgreSQL async connection string")
-    APP_NAME: str = Field(default="NexOS")
+    APP_NAME: str = Field(default="NEXOM")
     APP_ENV: str = Field(default="development")
     DEBUG: bool = Field(default=False)
 
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = Field(default=587, description="SMTP server port")
     SMTP_USER: str = Field(default="", description="SMTP username / email")
     SMTP_PASSWORD: str = Field(default="", description="SMTP password or app password")
-    SMTP_FROM_NAME: str = Field(default="NexOS", description="Display name in emails")
+    SMTP_FROM_NAME: str = Field(default="NEXOM", description="Display name in emails")
     SMTP_FROM_EMAIL: str = Field(default="", description="Sender email address")
     SMTP_USE_TLS: bool = Field(default=True, description="Use STARTTLS")
 

@@ -1,5 +1,5 @@
 """
-Clase base abstracta para todos los agentes de NexOS.
+Clase base abstracta para todos los agentes de NEXOM.
 Soporta historial conversacional para respuestas contextuales.
 """
 

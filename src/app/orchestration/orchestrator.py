@@ -1,5 +1,5 @@
 """
-Orquestador principal de NexOS — LangGraph StateGraph.
+Orquestador principal de NEXOM — LangGraph StateGraph.
 El router LLM decide qué agente usar basándose en el mensaje + historial.
 """
 

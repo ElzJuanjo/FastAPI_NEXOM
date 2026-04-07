@@ -160,7 +160,7 @@ class FlowFromTemplate:
                 f"Template '{template_id}' no encontrado. Disponibles: {available}"
             )
 
-        flow_name = name or f"{template['name_prefix']} — {context.get('brand', 'NexOS')}" if context else template["name_prefix"]
+        flow_name = name or f"{template['name_prefix']} — {context.get('brand', 'NEXOM')}" if context else template["name_prefix"]
 
         # Crear Flow
         flow = Flow(

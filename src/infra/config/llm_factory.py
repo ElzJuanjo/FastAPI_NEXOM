@@ -23,7 +23,7 @@ def get_chat_model(
         openai_api_key=settings.OPENROUTER_API_KEY,
         openai_api_base=settings.OPENROUTER_BASE_URL,
         default_headers={
-            "HTTP-Referer": "https://nexos.app",
-            "X-Title": "NexOS",
+            "HTTP-Referer": "https://nexom.app",
+            "X-Title": "NEXOM",
         },
     )

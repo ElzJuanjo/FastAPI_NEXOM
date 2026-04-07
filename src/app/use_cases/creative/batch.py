@@ -3,6 +3,9 @@ Caso de uso: Generación masiva de creativos publicitarios.
 Usa el agente de imágenes con su system_prompt profesional como base,
 y genera variaciones controladas de estilo y formato.
 La cantidad de imágenes generadas es exacta al preset seleccionado.
+
+v2: Adds product image reference for realistic generation and
+    prompt packs with ready-to-use prompts for each creative.
 """
 
 from __future__ import annotations
@@ -34,6 +37,78 @@ FORMATS = [
     {"id": "stories_9x16", "aspect_ratio": "9:16", "platform": "Stories/Reels/TikTok"},
     {"id": "portrait_4x5", "aspect_ratio": "4:5", "platform": "Instagram Portrait"},
 ]
+
+# ---------------------------------------------------------------------------
+# Prompt pack templates — ready-to-use prompts for each style
+# ---------------------------------------------------------------------------
+
+PROMPT_PACK_TEMPLATES = {
+    "product_only": [
+        "Professional studio shot of {product} on seamless white background, soft shadow, commercial ready, 4K",
+        "{product} floating on gradient background, dramatic rim lighting, premium feel",
+        "Minimalist product photography of {product}, neutral gray backdrop, editorial clean",
+        "{product} with subtle reflection on glossy surface, luxury packaging shot",
+    ],
+    "lifestyle": [
+        "{product} being used naturally by a person in a cozy home setting, warm tones, authentic",
+        "Person confidently using {product} outdoors, golden hour lighting, lifestyle campaign",
+        "{product} on a beautiful desk setup, morning coffee vibe, aspirational lifestyle",
+        "Close-up of hands interacting with {product}, natural skin tones, genuine moment",
+    ],
+    "editorial": [
+        "High-fashion editorial featuring {product}, Vogue-style composition, dramatic lighting",
+        "{product} in a minimalist art gallery setting, conceptual fashion photography",
+        "Artistic flat composition with {product} as centerpiece, muted tones, magazine cover worthy",
+    ],
+    "ugc_style": [
+        "Selfie-style photo of person excitedly unboxing {product}, authentic reaction, phone camera feel",
+        "Casual overhead shot of {product} on messy desk with coffee and notes, real life aesthetic",
+        "Person reviewing {product} in front of ring light, content creator setup, authentic feel",
+    ],
+    "flat_lay": [
+        "Top-down flat lay: {product} surrounded by complementary items and textures, styled arrangement",
+        "Knolling composition with {product} and daily essentials, geometric precision, clean background",
+    ],
+    "detail": [
+        "Extreme macro shot of {product} texture and materials, shallow depth of field, craftsmanship",
+        "Close-up detail of {product} stitching/buttons/finish, revealing quality and premium materials",
+    ],
+    "context": [
+        "{product} placed naturally in a modern living room, interior design magazine style",
+        "{product} in an active outdoor scene, adventure photography, vibrant colors",
+    ],
+    "video_ideas": [
+        "VIDEO CONCEPT: 15s unboxing reveal of {product} — start with package, slow reveal, end with product in use",
+        "VIDEO CONCEPT: Before/After comparison using {product} — split screen, dramatic transformation",
+        "VIDEO CONCEPT: 30s lifestyle montage — 3 scenes showing {product} in different daily moments",
+        "VIDEO CONCEPT: Close-up ASMR-style — unwrapping, touching textures, detailed product showcase",
+    ],
+}
+
+
+def generate_prompt_pack(product_name: str, style_id: str) -> list[dict]:
+    """Generate a prompt pack for a given product and style."""
+    templates = PROMPT_PACK_TEMPLATES.get(style_id, [])
+    video_templates = PROMPT_PACK_TEMPLATES.get("video_ideas", [])
+
+    prompts = []
+    for tmpl in templates:
+        prompts.append({
+            "type": "image",
+            "style": style_id,
+            "prompt": tmpl.format(product=product_name),
+        })
+
+    # Always include 1-2 video ideas
+    for tmpl in video_templates[:2]:
+        prompts.append({
+            "type": "video",
+            "style": "video",
+            "prompt": tmpl.format(product=product_name),
+        })
+
+    return prompts
+
 
 # ---------------------------------------------------------------------------
 # Presets
@@ -108,12 +183,15 @@ async def execute_creative_batch(
     custom_angles: list[str] | None = None,
     custom_formats: list[str] | None = None,
     custom_styles: list[str] | None = None,
+    product_image_url: str = "",
     progress_emitter=None,
 ) -> dict:
     """
     Ejecuta un batch usando el agente de imágenes.
     Genera exactamente la cantidad de imágenes del preset.
-    Si progress_emitter está presente, emite progreso por cada imagen.
+    If product_image_url is provided, it's passed as visual reference
+    to generate images based on the real product appearance.
+    Also generates a prompt pack with ready-to-use prompts for each variation.
     """
     preset = BATCH_PRESETS.get(preset_id, BATCH_PRESETS["starter"])
     variations = preset["variations"]
@@ -127,9 +205,20 @@ async def execute_creative_batch(
     if brand_palette:
         base_input += f". Brand colors: {brand_palette}"
 
+    # If we have a real product image, instruct the model to use it as reference
+    reference_instruction = ""
+    if product_image_url:
+        reference_instruction = (
+            f". IMPORTANT: Use the provided reference image of the real product as the base. "
+            f"The generated image MUST closely match the real product's appearance, shape, color, "
+            f"and details. Do NOT invent a different product — adapt the REAL product into the requested style. "
+            f"Reference image: {product_image_url}"
+        )
+
     results = []
     total_generated = 0
     total_failed = 0
+    all_prompt_packs = []
 
     for idx, variation in enumerate(variations):
         if total_generated >= target_count:
@@ -148,21 +237,30 @@ async def execute_creative_batch(
                 detail=f"{format_info['platform']} ({format_info['aspect_ratio']})",
             )
 
-        user_input = f"{base_input}. Style: {style_info['suffix']}"
+        user_input = f"{base_input}. Style: {style_info['suffix']}{reference_instruction}"
 
         try:
+            context = {
+                "aspect_ratio": format_info["aspect_ratio"],
+                "style": variation["style"],
+            }
+            # Pass product image URL in context for multimodal models
+            if product_image_url:
+                context["reference_image_url"] = product_image_url
+
             result = await agent.execute(
                 user_input=user_input,
-                context={
-                    "aspect_ratio": format_info["aspect_ratio"],
-                    "style": variation["style"],
-                },
+                context=context,
             )
 
             images = result.get("images", [])
             if images:
                 img = images[0]
                 total_generated += 1
+
+                # Generate prompt pack for this style
+                style_prompts = generate_prompt_pack(product_name, variation["style"])
+
                 results.append({
                     "image": img,
                     "angle": variation["style"],
@@ -172,6 +270,7 @@ async def execute_creative_batch(
                     "aspect_ratio": format_info["aspect_ratio"],
                     "prompt_used": user_input,
                     "model": result.get("model", ""),
+                    "prompt_pack": style_prompts,
                 })
 
                 if progress_emitter:
@@ -195,6 +294,15 @@ async def execute_creative_batch(
     if progress_emitter:
         await progress_emitter.emit(stage="uploading", pct=92, message="Uploading images to storage...")
 
+    # Collect all unique prompt packs across all generated images
+    seen_prompts = set()
+    for r in results:
+        for p in r.get("prompt_pack", []):
+            key = p["prompt"]
+            if key not in seen_prompts:
+                seen_prompts.add(key)
+                all_prompt_packs.append(p)
+
     return {
         "images": results,
         "total_prompts": len(variations),
@@ -202,4 +310,5 @@ async def execute_creative_batch(
         "total_failed": total_failed,
         "credits_consumed": total_generated * credit_per_image,
         "preset_used": preset_id,
+        "prompt_pack": all_prompt_packs,
     }

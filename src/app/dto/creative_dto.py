@@ -75,6 +75,7 @@ class CreativeBatchRequest(BaseModel):
     brand_palette: Optional[str] = Field(default="")
     preset_id: str = Field(default="starter")
     gallery_name: Optional[str] = Field(default=None, description="Nombre de galería")
+    product_image_url: Optional[str] = Field(default="", description="URL de imagen real del producto para usar como referencia visual")
 
 
 class CreateGalleryRequest(BaseModel):

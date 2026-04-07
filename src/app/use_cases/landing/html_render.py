@@ -1340,7 +1340,7 @@ def html_shell(body: str, name: str, brand_name: str, theme: Theme) -> str:
 </head>
 <body>
 {body}
-<div class="footer">&copy; 2026 {_e(brand_name)} &middot; Powered by NexOS</div>
+<div class="footer">&copy; 2026 {_e(brand_name)} &middot; Powered by NEXOM</div>
 </body>
 </html>"""
 

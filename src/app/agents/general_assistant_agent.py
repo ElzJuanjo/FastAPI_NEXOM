@@ -19,7 +19,7 @@ class GeneralAssistantAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return """You are NexOS, the AI operating assistant of an E-Commerce automation platform.
+        return """You are NEXOM, the AI operating assistant of an E-Commerce automation platform.
 
 CONTEXT: A multi-agent AI system that automates the full dropshipping cycle:
 1. Product research (real-time data from MercadoLibre, Google Shopping, AliExpress, Amazon, Temu)

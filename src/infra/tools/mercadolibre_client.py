@@ -190,14 +190,46 @@ class MercadoLibreClient:
         return seller_match.group(1) if seller_match else ""
 
     def _extract_sold(self, item: dict) -> int:
-        """Extrae cantidad vendida del snippet."""
-        snippet = item.get("snippet", "")
-        sold_match = re.search(r"(\d+)\s*vendidos?", snippet, re.IGNORECASE)
+        """Extrae cantidad vendida del snippet o title."""
+        # Check both snippet and title for sales data
+        text = (item.get("snippet", "") + " " + item.get("title", "")).lower()
+
+        # Format: "500+ vendidos", "1.234 vendidos", "+500 vendidos"
+        sold_match = re.search(r"\+?(\d[\d.,]*)(?:\+)?\s*vendidos?", text, re.IGNORECASE)
         if sold_match:
             try:
-                return int(sold_match.group(1))
+                num_str = sold_match.group(1).replace(".", "").replace(",", "")
+                return int(num_str)
             except ValueError:
                 pass
+
+        # Format: "sold 500+", "500+ sold"
+        sold_match_en = re.search(r"(\d[\d.,]*)\+?\s*sold", text, re.IGNORECASE)
+        if sold_match_en:
+            try:
+                num_str = sold_match_en.group(1).replace(".", "").replace(",", "")
+                return int(num_str)
+            except ValueError:
+                pass
+
+        # Format: "Más de 500 vendidos" or "más de 25 mil vendidos"
+        mas_match = re.search(r"más de\s+(\d[\d.,]*)\s*(mil)?\s*vendidos?", text, re.IGNORECASE)
+        if mas_match:
+            try:
+                num_str = mas_match.group(1).replace(".", "").replace(",", "")
+                multiplier = 1000 if mas_match.group(2) else 1
+                return int(num_str) * multiplier
+            except ValueError:
+                pass
+
+        # Format in rich snippet: "reviews_count" often correlates with sales
+        rich = item.get("rich_snippet", {})
+        if isinstance(rich, dict):
+            reviews = rich.get("top", {}).get("detected_extensions", {}).get("reviews", 0)
+            if reviews and int(reviews) > 10:
+                # Estimate: reviews ≈ 5-10% of sales
+                return int(reviews) * 5
+
         return 0
 
     def _has_free_shipping(self, item: dict) -> bool:

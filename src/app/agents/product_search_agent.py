@@ -224,6 +224,35 @@ RULES FOR THE JSON BLOCK:
 
         return self._build_messages_with_history("\n".join(parts), context)
 
+    # ── Generic query detection ─────────────────────────────────────────
+    _GENERIC_PATTERNS = [
+        "busca productos", "buscar productos", "encuentra productos",
+        "productos ganadores", "productos trending", "winning products",
+        "find products", "search products", "qué se vende", "que se vende",
+        "qué vender", "que vender", "productos para vender",
+        "productos rentables", "top productos", "mejores productos",
+    ]
+
+    def _is_generic_query(self, user_input: str) -> bool:
+        """Detect if query is too generic (no specific niche/product)."""
+        low = user_input.lower().strip()
+        # Exact match or very short
+        if len(low) < 20:
+            for pat in self._GENERIC_PATTERNS:
+                if pat in low:
+                    return True
+        # If it's just "busca productos" or similar with no qualifiers
+        if any(low == pat for pat in self._GENERIC_PATTERNS):
+            return True
+        return False
+
+    def _enrich_query_for_bestsellers(self, user_input: str, country: str) -> str:
+        """For generic queries, append 'más vendidos' to improve results."""
+        low = user_input.lower()
+        if any(kw in low for kw in ["más vendido", "mas vendido", "best sell", "top sell", "trending"]):
+            return user_input  # Already has qualifier
+        return f"{user_input} más vendidos"
+
     async def execute(
         self,
         user_input: str,
@@ -237,18 +266,47 @@ RULES FOR THE JSON BLOCK:
         """
         context = context or {}
         country = context.get("country", context.get("market", "colombia")).lower()
+        is_generic = self._is_generic_query(user_input)
 
         # 1. Scraping real
         scraped_data = {}
 
         # MercadoLibre (siempre disponible, sin API key)
         try:
+            # For generic queries, search for best-sellers to get products
+            # with actual sales history instead of random recent listings
+            ml_query = self._enrich_query_for_bestsellers(user_input, country) if is_generic else user_input
             ml_results = await mercadolibre_client.search_products(
-                query=user_input,
+                query=ml_query,
                 country=country,
                 limit=15,
                 sort="relevance",
             )
+
+            # If generic query and few results with sales data, do a secondary
+            # search with trending categories to complement
+            if is_generic:
+                products_with_sales = [p for p in ml_results if (p.get("sold_quantity") or 0) > 0]
+                if len(products_with_sales) < 3:
+                    # Secondary search: trending niches
+                    for trending_q in ["gadgets más vendidos", "accesorios trending", "hogar más vendidos"]:
+                        try:
+                            extra_ml = await mercadolibre_client.search_products(
+                                query=trending_q, country=country, limit=5, sort="relevance",
+                            )
+                            ml_results.extend(extra_ml)
+                        except Exception:
+                            pass
+                    # Deduplicate by URL
+                    seen_urls = set()
+                    deduped = []
+                    for p in ml_results:
+                        url = p.get("url", "")
+                        if url not in seen_urls:
+                            seen_urls.add(url)
+                            deduped.append(p)
+                    ml_results = deduped
+
             scraped_data["mercadolibre"] = ml_results
         except Exception as e:
             scraped_data["mercadolibre"] = []
@@ -261,8 +319,9 @@ RULES FOR THE JSON BLOCK:
                 "chile": "cl", "peru": "pe", "brasil": "br",
             }.get(country, "co")
 
+            gs_query = self._enrich_query_for_bestsellers(user_input, country) if is_generic else user_input
             gs_results = await serpapi_client.search_google_shopping(
-                query=user_input,
+                query=gs_query,
                 country=country_code,
                 num_results=10,
             )

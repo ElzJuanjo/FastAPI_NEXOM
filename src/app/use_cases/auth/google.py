@@ -4,7 +4,7 @@ Crea el usuario si no existe, o lo loguea si ya existe.
 Soporta vincular Google a una cuenta email existente.
 
 Flujo con frontend:
-- Genera access_token + refresh_token de NexOS
+- Genera access_token + refresh_token de NEXOM
 - Retorna ambos tokens (el router se encarga de setear la cookie
   y redirigir con el access_token en la URL).
 """
@@ -49,7 +49,7 @@ class GoogleAuth:
         3. Buscar usuario existente por email o provider_user_id
         4. Crear usuario si no existe
         5. Vincular provider si usuario existe pero no tiene Google
-        6. Generar JWT de NexOS
+        6. Generar JWT de NEXOM
 
         Returns:
             Dict con: access_token, refresh_token, user, is_new_user
@@ -158,13 +158,13 @@ class GoogleAuth:
             )
             await self._user_repo.add_auth_provider(google_provider)
 
-        # 6. Generar JWT de NexOS
-        nexos_access_token = create_access_token(subject=user.id)
-        nexos_refresh_token = create_refresh_token(subject=user.id)
+        # 6. Generar JWT de NEXOM
+        nexom_access_token = create_access_token(subject=user.id)
+        nexom_refresh_token = create_refresh_token(subject=user.id)
 
         return {
             "user": user,
-            "access_token": nexos_access_token,
-            "refresh_token": nexos_refresh_token,
+            "access_token": nexom_access_token,
+            "refresh_token": nexom_refresh_token,
             "is_new_user": is_new_user,
         }

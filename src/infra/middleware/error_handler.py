@@ -19,7 +19,7 @@ logger = structlog.get_logger()
 # ---------------------------------------------------------------------------
 
 class NexOSError(Exception):
-    """Excepción base de NexOS."""
+    """Excepción base de NEXOM."""
     status_code: int = 500
     error_code: str = "INTERNAL_ERROR"
     message: str = "Error interno del servidor"
@@ -65,7 +65,7 @@ class ValidationError(NexOSError):
 # ---------------------------------------------------------------------------
 
 async def nexos_error_handler(request: Request, exc: NexOSError) -> JSONResponse:
-    """Handler para excepciones de dominio de NexOS."""
+    """Handler para excepciones de dominio de NEXOM."""
     logger.warning(
         "nexos_error",
         error_code=exc.error_code,

@@ -271,7 +271,7 @@ class DropisClient:
     # ---------------------------------------------------------------------------
 
     def _normalize_product(self, p: dict) -> dict:
-        """Normaliza un producto de Dropi al formato interno de NexOS."""
+        """Normaliza un producto de Dropi al formato interno de NEXOM."""
         total_stock = 0
         warehouses = p.get("warehouse_product", [])
         if warehouses:

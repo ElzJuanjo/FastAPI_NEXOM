@@ -52,12 +52,29 @@ def score_product(product: dict) -> dict:
     competition = _num(product.get("competition_level"), 5)
     rating = _num(product.get("rating"), 0)
 
-    # Normalizar cada componente (0-100)
-    sales_score = normalize(sales, 0, 1000)        # 0-1000 ventas/mes
+    # ── Handle incomplete data gracefully ──
+    # When sales data is 0 (likely missing, not actually zero), assign a
+    # neutral baseline instead of hard-penalizing. Products scraped via
+    # Google/SerpAPI often lack "X vendidos" in their snippet, which doesn't
+    # mean they have zero sales — it means we couldn't extract the data.
+    has_sales_data = sales > 0
+    if not has_sales_data:
+        # Neutral baseline: 50/100 instead of 0/100 — doesn't reward, doesn't kill
+        sales_score = 50.0
+    else:
+        sales_score = normalize(sales, 0, 1000)
+
+    # Same logic for rating: 0 usually means "not extracted", not "terrible"
+    has_rating_data = rating > 0
+    if not has_rating_data:
+        rating_score = 50.0
+    else:
+        rating_score = normalize(rating, 0, 5)
+
+    # Normalizar remaining components (0-100)
     margin_score = normalize(margin, 0, 80)          # 0-80% margen
     trend_score = normalize(trend, -10, 50)          # -10% a +50% MoM
     competition_inv = normalize(10 - competition, 0, 10)  # invertir: menos competencia = mejor
-    rating_score = normalize(rating, 0, 5)           # 0-5 estrellas
 
     # Fórmula ponderada
     score_total = (

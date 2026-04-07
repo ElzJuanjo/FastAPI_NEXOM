@@ -65,8 +65,8 @@ class OpenRouterClient:
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://nexos.app",
-            "X-Title": "NexOS",
+            "HTTP-Referer": "https://nexom.app",
+            "X-Title": "NEXOM",
         }
 
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -130,8 +130,8 @@ class OpenRouterClient:
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://nexos.app",
-            "X-Title": "NexOS",
+            "HTTP-Referer": "https://nexom.app",
+            "X-Title": "NEXOM",
         }
 
         async with httpx.AsyncClient(timeout=120.0) as client:

@@ -1,5 +1,5 @@
 """
-NexOS Domain Base: Base declarativa, Mixins y Enums compartidos.
+NEXOM Domain Base: Base declarativa, Mixins y Enums compartidos.
 """
 
 from __future__ import annotations

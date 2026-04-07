@@ -176,6 +176,7 @@ async def generate_creative_batch(
             product_description=body.product_description,
             brand_palette=body.brand_palette,
             preset_id=body.preset_id,
+            product_image_url=body.product_image_url or "",
         )
     except Exception as e:
         batch.status = FlowStatus.ERROR
@@ -257,6 +258,7 @@ async def generate_creative_batch_stream(
                         product_description=body.product_description,
                         brand_palette=body.brand_palette,
                         preset_id=body.preset_id,
+                        product_image_url=body.product_image_url or "",
                         progress_emitter=emitter,
                     )
                     result_holder["data"] = r
@@ -330,6 +332,7 @@ async def generate_creative_batch_stream(
                 "credits_remaining": max(0, plan.max_credits_per_month - organization.credits_used_this_month),
                 "images": creative_urls,
                 "duration_ms": int((time.time() - batch_start_time) * 1000),
+                "prompt_pack": batch_result.get("prompt_pack", []),
             }
 
             yield emitter.to_sse_done(done_payload)

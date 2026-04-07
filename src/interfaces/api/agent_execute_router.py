@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from infra.config.database import get_session
 from app.dto.agent_execute_dto import ExecuteAgentRequest, ExecuteAgentResponse
-from app.use_cases.agent_execute import (
+from app.use_cases.execution.agent_execute import (
     AgentExecute, AgentNotAvailableError, OrganizationQuotaExceededError,
 )
 from interfaces.dependencies.agent_execute_dependencies import get_agent_execute
@@ -88,7 +88,7 @@ async def execute_agent(
 
                 # Crear Creatives (con o sin product_id)
                 product_id = (body.context or {}).get("product_id") or None
-                from app.use_cases.creative_persist import persist_creative
+                from app.use_cases.creative.persist import persist_creative
                 gen_params = task.output_payload.get("generation_params") or {}
                 for s3_url in s3_urls:
                     try:

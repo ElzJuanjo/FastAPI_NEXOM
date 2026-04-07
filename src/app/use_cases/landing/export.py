@@ -8,7 +8,7 @@ import re
 from domain.repositories.landing_page_repository import LandingPageRepository
 from domain.repositories.brand_repository import BrandRepository
 
-from app.use_cases.landing_html_render import (
+from app.use_cases.landing.html_render import (
     LandingRenderError, Theme,
     _extract_title, _clean_body, _extract_field,
     _extract_benefits, _extract_testimonials, _extract_faqs,

@@ -10,7 +10,6 @@ from infra.middleware.error_handler import (
     http_exception_handler, unhandled_exception_handler,
 )
 from infra.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -25,7 +24,6 @@ from interfaces.api.flow_router import router as flow_router
 from interfaces.api.agent_execute_router import router as agent_execute_router
 from interfaces.api.creative_router import router as creative_router
 from interfaces.api.landing_page_router import router as landing_page_router
-from interfaces.api.orchestrator_router import router as orchestrator_router
 from interfaces.api.flow_execute_router import router as flow_execute_router
 from interfaces.api.flow_template_router import router as flow_template_router
 from interfaces.api.creative_batch_router import router as creative_batch_router
@@ -80,7 +78,6 @@ app.include_router(flow_router, prefix="/api/v1")
 app.include_router(agent_execute_router, prefix="/api/v1")
 app.include_router(creative_router, prefix="/api/v1")
 app.include_router(landing_page_router, prefix="/api/v1")
-app.include_router(orchestrator_router, prefix="/api/v1")
 app.include_router(flow_execute_router, prefix="/api/v1")
 app.include_router(flow_template_router, prefix="/api/v1")
 app.include_router(creative_batch_router, prefix="/api/v1")

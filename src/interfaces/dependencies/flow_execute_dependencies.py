@@ -10,7 +10,7 @@ from infra.adapters.flow_sqlalchemy import FlowSQLAlchemyRepository
 from infra.adapters.agent_task_sqlalchemy import AgentTaskSQLAlchemyRepository
 from domain.repositories.flow_repository import FlowRepository
 from domain.repositories.agent_task_repository import AgentTaskRepository
-from app.use_cases.flow_execute import FlowExecute
+from app.use_cases.flow.execute import FlowExecute
 
 
 def get_flow_repo(session: AsyncSession = Depends(get_session)) -> FlowRepository:

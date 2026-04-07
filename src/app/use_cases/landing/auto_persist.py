@@ -34,7 +34,7 @@ def is_landing_content(content: str) -> bool:
         return True
 
     # Heuristic fallback
-    from app.use_cases.landing_section_parser import is_landing_content as _legacy_check
+    from app.use_cases.landing.section_parser import is_landing_content as _legacy_check
     return _legacy_check(content)
 
 
@@ -146,7 +146,7 @@ async def auto_persist_landing_sections(
         # Fallback to regex parser
         source = "fallback"
         logger.info("LANDING_JSON block not found, using fallback regex parser")
-        from app.use_cases.landing_section_parser import parse_landing_sections
+        from app.use_cases.landing.section_parser import parse_landing_sections
         sections_data = parse_landing_sections(content)
         lp_name = None
 

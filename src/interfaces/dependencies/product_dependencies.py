@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.adapters.product_sqlalchemy import ProductSQLAlchemyRepository
 from domain.repositories.product_repository import ProductRepository
-from app.use_cases.product_crud import ProductCreate, ProductList, ProductUpdate, ProductDelete
+from app.use_cases.product.crud import ProductCreate, ProductList, ProductUpdate, ProductDelete
 
 
 def get_product_repository(session: AsyncSession = Depends(get_session)) -> ProductRepository:

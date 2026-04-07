@@ -10,7 +10,7 @@ from app.dto.product_dto import (
     CreateProductRequest, UpdateProductRequest,
     ProductResponse, ProductListResponse,
 )
-from app.use_cases.product_crud import ProductCreate, ProductList, ProductUpdate, ProductDelete, ProductNotFoundError
+from app.use_cases.product.crud import ProductCreate, ProductList, ProductUpdate, ProductDelete, ProductNotFoundError
 from interfaces.dependencies.product_dependencies import (
     get_product_create, get_product_list, get_product_update, get_product_delete,
 )

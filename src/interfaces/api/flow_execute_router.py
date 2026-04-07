@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.events.progress import ProgressEmitter, ProgressEvent
 from app.dto.flow_execute_dto import ExecuteFlowRequest, ExecuteFlowResponse, StepResultSummary
-from app.use_cases.flow_execute import FlowExecute, FlowNotFoundError, FlowAlreadyRunningError, FlowQuotaExceededError
+from app.use_cases.flow.execute import FlowExecute, FlowNotFoundError, FlowAlreadyRunningError, FlowQuotaExceededError
 from interfaces.dependencies.flow_execute_dependencies import get_flow_execute
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 from interfaces.dependencies.org_membership import get_current_org

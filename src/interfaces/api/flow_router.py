@@ -10,7 +10,7 @@ from app.dto.flow_dto import (
     CreateFlowRequest, UpdateFlowRequest, FlowResponse, FlowListResponse,
     CreateFlowStepRequest, UpdateFlowStepRequest, FlowStepResponse,
 )
-from app.use_cases.flow_crud import (
+from app.use_cases.flow.crud import (
     FlowCreate, FlowList, FlowUpdate, FlowDelete,
     FlowAddStep, FlowStepUpdate,
     FlowNotFoundError, FlowStepNotFoundError,

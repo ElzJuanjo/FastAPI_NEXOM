@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.adapters.landing_page_sqlalchemy import LandingPageSQLAlchemyRepository
 from domain.repositories.landing_page_repository import LandingPageRepository
-from app.use_cases.landing_page_crud import (
+from app.use_cases.landing.crud import (
     LandingPageCreate, LandingPageList, LandingPageUpdate, LandingPageDelete, LandingSectionUpdate,
 )
 

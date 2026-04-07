@@ -37,4 +37,3 @@ class Brand(UUIDPk, TimestampMixin, Base):
     products:      Mapped[List["Product"]]         = relationship(back_populates="brand")
     landing_pages: Mapped[List["LandingPage"]]     = relationship(back_populates="brand")
     copy_assets:   Mapped[List["CopyAsset"]]       = relationship(back_populates="brand")
-    analyses:      Mapped[List["ConversionAnalysis"]] = relationship(back_populates="brand")

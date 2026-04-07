@@ -12,18 +12,18 @@ from app.dto.organization_dto import (
     ChangePlanRequest, OrganizationResponse,
     OrganizationListResponse, PlanResponse,
 )
-from app.use_cases.org_create import (
+from app.use_cases.org.create import (
     OrgCreate, SlugAlreadyExistsError, PlanNotFoundError,
     UserAlreadyHasOrganizationError,
 )
-from app.use_cases.org_update import (
+from app.use_cases.org.update import (
     OrgUpdate, OrgChangePlan, OrgNotFoundError,
     SlugAlreadyExistsError as UpdateSlugAlreadyExistsError,
     PlanNotFoundError as ChangePlanNotFoundError,
     SamePlanError,
 )
-from app.use_cases.org_list import OrgList
-from app.use_cases.plan_seed import PlanSeed
+from app.use_cases.org.list import OrgList
+from app.use_cases.org.plan_seed import PlanSeed
 from interfaces.dependencies.org_dependencies import (
     get_org_create, get_org_list, get_org_update,
     get_org_change_plan, get_plan_seed, get_plan_repository,

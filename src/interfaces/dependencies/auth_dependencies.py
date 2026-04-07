@@ -11,9 +11,9 @@ from infra.config.database import get_session
 from infra.config.security import decode_token
 from infra.adapters.user_sqlalchemy import UserSQLAlchemyRepository
 from domain.repositories.user_repository import UserRepository
-from app.use_cases.auth_register import AuthRegister
-from app.use_cases.auth_login import AuthLogin
-from app.use_cases.auth_refresh import AuthRefresh
+from app.use_cases.auth.register import AuthRegister
+from app.use_cases.auth.login import AuthLogin
+from app.use_cases.auth.refresh import AuthRefresh
 
 
 # ---------------------------------------------------------------------------

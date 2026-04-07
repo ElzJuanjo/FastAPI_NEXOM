@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.adapters.brand_sqlalchemy import BrandSQLAlchemyRepository
 from domain.repositories.brand_repository import BrandRepository
-from app.use_cases.brand_crud import BrandCreate, BrandList, BrandUpdate, BrandDelete
+from app.use_cases.brand.crud import BrandCreate, BrandList, BrandUpdate, BrandDelete
 
 
 def get_brand_repository(session: AsyncSession = Depends(get_session)) -> BrandRepository:

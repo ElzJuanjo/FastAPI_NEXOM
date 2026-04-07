@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from app.dto.landing_page_dto import *
-from app.use_cases.landing_page_crud import *
+from app.use_cases.landing.crud import *
 from interfaces.dependencies.landing_page_dependencies import *
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 
@@ -167,7 +167,7 @@ async def render_landing_page(
     session: AsyncSession = Depends(get_session),
 ):
     """Render the landing page as a complete HTML document."""
-    from app.use_cases.landing_html_render import LandingHTMLRender, LandingRenderError
+    from app.use_cases.landing.html_render import LandingHTMLRender, LandingRenderError
     from infra.adapters.landing_page_sqlalchemy import LandingPageSQLAlchemyRepository
     from infra.adapters.brand_sqlalchemy import BrandSQLAlchemyRepository
 
@@ -189,7 +189,7 @@ async def export_shopify(
     session: AsyncSession = Depends(get_session),
 ):
     """Export the landing page as Shopify Liquid template."""
-    from app.use_cases.landing_export import LandingExporter, LandingRenderError
+    from app.use_cases.landing.export import LandingExporter, LandingRenderError
     from infra.adapters.landing_page_sqlalchemy import LandingPageSQLAlchemyRepository
     from infra.adapters.brand_sqlalchemy import BrandSQLAlchemyRepository
 
@@ -211,7 +211,7 @@ async def export_wordpress(
     session: AsyncSession = Depends(get_session),
 ):
     """Export the landing page as WordPress-compatible HTML block."""
-    from app.use_cases.landing_export import LandingExporter, LandingRenderError
+    from app.use_cases.landing.export import LandingExporter, LandingRenderError
     from infra.adapters.landing_page_sqlalchemy import LandingPageSQLAlchemyRepository
     from infra.adapters.brand_sqlalchemy import BrandSQLAlchemyRepository
 

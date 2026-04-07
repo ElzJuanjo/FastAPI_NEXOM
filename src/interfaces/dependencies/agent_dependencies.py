@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.adapters.agent_task_sqlalchemy import AgentTaskSQLAlchemyRepository
 from domain.repositories.agent_task_repository import AgentTaskRepository
-from app.use_cases.agent_task_crud import AgentTaskList
+from app.use_cases.execution.agent_task_crud import AgentTaskList
 
 
 # ---------------------------------------------------------------------------

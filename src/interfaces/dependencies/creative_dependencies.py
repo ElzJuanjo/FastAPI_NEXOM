@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.adapters.creative_sqlalchemy import CreativeSQLAlchemyRepository
 from domain.repositories.creative_repository import CreativeRepository
-from app.use_cases.creative_crud import CreativeCreate, CreativeList, CreativeUpdate, CreativeDelete
+from app.use_cases.creative.crud import CreativeCreate, CreativeList, CreativeUpdate, CreativeDelete
 
 
 def get_creative_repository(session: AsyncSession = Depends(get_session)) -> CreativeRepository:

@@ -28,7 +28,7 @@ from interfaces.dependencies.org_membership import get_current_org, get_current_
 
 from fastapi.responses import StreamingResponse
 from infra.events.progress import ProgressEmitter, ProgressEvent
-from app.use_cases.content_sanitizer import strip_internal_json
+from app.use_cases.conversation.content_sanitizer import strip_internal_json
 import asyncio
 import json
 
@@ -210,7 +210,7 @@ async def send_message_stream(
                         s3_results = await upload_multiple_base64_images(base64_images, org_id=org_id)
                         s3_urls = [r["url"] for r in s3_results]
 
-                        from app.use_cases.creative_persist import persist_creative
+                        from app.use_cases.creative.persist import persist_creative
                         for s3_result in s3_results:
                             try:
                                 await persist_creative(session=session, base64_image=s3_result["url"], org_id=org_id)
@@ -279,7 +279,7 @@ async def send_message_stream(
             landing_page_id = None
             if agent_type == "landing_page" and response_content_raw and not result.get("error"):
                 try:
-                    from app.use_cases.landing_auto_persist import auto_persist_landing_sections
+                    from app.use_cases.landing.auto_persist import auto_persist_landing_sections
                     landing_page_id = await auto_persist_landing_sections(
                         session=session,
                         content=response_content_raw,
@@ -293,7 +293,7 @@ async def send_message_stream(
             # Auto-persist brand identity if agent is branding
             if agent_type == "branding" and response_content_raw and not result.get("error"):
                 try:
-                    from app.use_cases.brand_auto_persist import auto_persist_brand_identity
+                    from app.use_cases.brand.auto_persist import auto_persist_brand_identity
                     await auto_persist_brand_identity(
                         session=session,
                         content=response_content_raw,
@@ -306,7 +306,7 @@ async def send_message_stream(
             # Auto-persist copy assets if agent is copywriting or ads
             if agent_type in ("copywriting", "ads") and response_content_raw and not result.get("error"):
                 try:
-                    from app.use_cases.copy_auto_persist import auto_persist_copy_assets
+                    from app.use_cases.copy_asset.auto_persist import auto_persist_copy_assets
                     await auto_persist_copy_assets(
                         session=session,
                         content=response_content_raw,
@@ -320,7 +320,7 @@ async def send_message_stream(
             # Auto-persist winner products if agent is product_search
             if agent_type == "product_search" and response_content_raw and not result.get("error"):
                 try:
-                    from app.use_cases.product_auto_persist import auto_persist_winner_products
+                    from app.use_cases.product.auto_persist import auto_persist_winner_products
                     await auto_persist_winner_products(
                         session=session,
                         content=response_content_raw,
@@ -372,252 +372,6 @@ async def send_message_stream(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
-    )
-    
-
-@router.post("/send", response_model=SendMessageResponse)
-@limiter.limit("15/minute")
-async def send_message(
-    request: Request,
-    body: SendMessageRequest,
-    organization: Organization = Depends(get_current_org),
-    user_id: str = Depends(get_current_user_id),
-    session: AsyncSession = Depends(get_session),
-):
-    """Envía un mensaje y recibe respuesta del orquestador con contexto conversacional."""
-    plan = organization.plan
-    org_id = str(organization.id)
-
-    # Validar créditos
-    min_cost = ROUTER_CREDIT_COST + 1
-    remaining = plan.max_credits_per_month - organization.credits_used_this_month
-    if remaining < min_cost:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Créditos insuficientes: te quedan {remaining}/{plan.max_credits_per_month}.",
-        )
-
-    # Obtener o crear conversación
-    conversation: Conversation | None = None
-    if body.conversation_id:
-        stmt = (
-            select(Conversation)
-            .options(selectinload(Conversation.messages))
-            .where(
-                Conversation.id == body.conversation_id,
-                Conversation.user_id == user_id,
-                Conversation.deleted_at.is_(None),
-            )
-        )
-        result = await session.execute(stmt)
-        conversation = result.scalar_one_or_none()
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversación no encontrada")
-    else:
-        # Nueva conversación — título del primer mensaje (truncado)
-        title = body.content[:80] + ("..." if len(body.content) > 80 else "")
-        conversation = Conversation(
-            organization_id=org_id,
-            user_id=user_id,
-            title=title,
-        )
-        session.add(conversation)
-        await session.flush()
-
-    # Guardar mensaje del usuario
-    user_message = ConversationMessage(
-        conversation_id=conversation.id,
-        role="user",
-        content=body.content,
-    )
-    session.add(user_message)
-    await session.flush()
-
-    # Construir contexto conversacional para el LLM
-    history = conversation.messages if body.conversation_id else []
-    context_messages = _build_context(history, body.content, MAX_CONTEXT_MESSAGES)
-
-    import time
-    _start_time = time.time()
-    
-    # Llamar al orquestador
-    try:
-        result = await run_orchestrator(
-            user_input=body.content,
-            context={"conversation_history": context_messages},
-            force_agent=body.force_agent,
-        )
-    except Exception as e:
-        # Guardar error como mensaje del assistant
-        error_msg = ConversationMessage(
-            conversation_id=conversation.id,
-            role="assistant",
-            content=f"Error: {str(e)}",
-            meta_data={"error": True},
-        )
-        session.add(error_msg)
-        conversation.message_count += 2
-        conversation.last_message_at = datetime.now(timezone.utc)
-        await session.commit()
-        raise HTTPException(status_code=500, detail=f"Error del orquestador: {str(e)}")
-
-    # Normalizar imágenes si las hay
-    raw_images = result.get("images")
-    s3_urls = []
-    if raw_images and isinstance(raw_images, list):
-        normalized = []
-        for img in raw_images:
-            if isinstance(img, str):
-                normalized.append(img)
-            elif isinstance(img, dict):
-                url = img.get("image_url", {}).get("url") or img.get("url", "")
-                if url:
-                    normalized.append(url)
-
-        base64_images = [img for img in normalized if img.startswith("data:") or len(img) > 500]
-        if base64_images:
-            try:
-                from infra.tools.s3_client import upload_multiple_base64_images
-                s3_results = await upload_multiple_base64_images(base64_images, org_id=org_id)
-                s3_urls = [r["url"] for r in s3_results]
-                
-                # Auto-guardar en creativos
-                from app.use_cases.creative_persist import persist_creative
-                for s3_result in s3_results:
-                    try:
-                        await persist_creative(
-                            session=session,
-                            base64_image=s3_result["url"],
-                            org_id=org_id,
-                        )
-                    except Exception as e:
-                        logger.error(f"Error auto-saving creative: {e}")
-                        
-            except Exception as e:
-                logger.error(f"Error uploading images: {e}")
-                s3_urls = normalized
-        else:
-            s3_urls = normalized
-
-    # Construir respuesta del assistant
-    response_content_raw = result.get("content") or result.get("error") or ""
-    response_content = strip_internal_json(response_content_raw)
-    agent_type = result.get("selected_agent") or body.agent_type
-
-    # Cobrar créditos
-    total_credits = get_credit_cost(agent_type or "general_assistant")
-    organization.credits_used_this_month += total_credits
-
-    # Guardar mensaje del assistant
-    assistant_message = ConversationMessage(
-        conversation_id=conversation.id,
-        role="assistant",
-        content=response_content,
-        agent_type=agent_type,
-        meta_data={
-            "model": result.get("model"),
-            "tokens_used": result.get("tokens_used"),
-            "images": s3_urls if s3_urls else None,
-            "credits_consumed": total_credits,
-            "router_reasoning": result.get("router_reasoning"),
-        },
-    )
-    session.add(assistant_message)
-
-    # Actualizar conversación
-    conversation.message_count += 2
-    conversation.last_message_at = datetime.now(timezone.utc)
-    conversation.agent_type = agent_type
-
-    # Registrar en agent_tasks para actividad reciente
-    if agent_type:
-        from domain.entities.agent import AgentTask
-        try:
-            agent_task = AgentTask(
-                organization_id=org_id,
-                agent_type=agent_type,
-                status="completed" if not result.get("error") else "error",
-                input_payload={"user_input": body.content, "conversation_id": conversation.id},
-                output_payload={
-                    "content": response_content[:500] if response_content else None,
-                    "images": s3_urls if s3_urls else None,
-                    "model": result.get("model"),
-                },
-                error_message=result.get("error"),
-                credits_used=total_credits,
-                duration_ms=int((time.time() - _start_time) * 1000),
-                started_at=datetime.now(timezone.utc),
-                finished_at=datetime.now(timezone.utc),
-            )
-            session.add(agent_task)
-        except Exception as e:
-            logger.error(f"Error registering agent task: {e}")
-
-    # Auto-persist landing page sections if agent is landing_page
-    if agent_type == "landing_page" and response_content_raw and not result.get("error"):
-        try:
-            from app.use_cases.landing_auto_persist import auto_persist_landing_sections
-            await auto_persist_landing_sections(
-                session=session,
-                content=response_content_raw,
-                org_id=org_id,
-                brand_id=None,
-                conversation_id=conversation.id,
-            )
-        except Exception as e:
-            logger.error(f"Error auto-persisting landing sections: {e}")
-
-    # Auto-persist brand identity if agent is branding
-    if agent_type == "branding" and response_content_raw and not result.get("error"):
-        try:
-            from app.use_cases.brand_auto_persist import auto_persist_brand_identity
-            await auto_persist_brand_identity(
-                session=session,
-                content=response_content_raw,
-                org_id=org_id,
-                conversation_id=conversation.id,
-            )
-        except Exception as e:
-            logger.error(f"Error auto-persisting brand identity: {e}")
-            
-    # Auto-persist copy assets if agent is copywriting or ads
-    if agent_type in ("copywriting", "ads") and response_content_raw and not result.get("error"):
-        try:
-            from app.use_cases.copy_auto_persist import auto_persist_copy_assets
-            await auto_persist_copy_assets(
-                session=session,
-                content=response_content_raw,
-                org_id=org_id,
-                brand_id=None,
-                conversation_id=conversation.id,
-            )
-        except Exception as e:
-            logger.error(f"Error auto-persisting copy assets: {e}")
-
-    # Auto-persist winner products if agent is product_search
-    if agent_type == "product_search" and response_content_raw and not result.get("error"):
-        try:
-            from app.use_cases.product_auto_persist import auto_persist_winner_products
-            await auto_persist_winner_products(
-                session=session,
-                content=response_content_raw,
-                org_id=org_id,
-                conversation_id=conversation.id,
-                raw_scraped_data=result.get("raw_scraped_data"),
-            )
-        except Exception as e:
-            logger.error(f"Error auto-persisting winner products: {e}")
-
-    await session.commit()
-
-    credits_remaining = max(0, plan.max_credits_per_month - organization.credits_used_this_month)
-
-    return SendMessageResponse(
-        conversation_id=conversation.id,
-        message=ConversationMessageResponse.model_validate(user_message),
-        response=ConversationMessageResponse.model_validate(assistant_message),
-        credits_consumed=total_credits,
-        credits_remaining=credits_remaining,
     )
 
 

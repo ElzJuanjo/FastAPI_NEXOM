@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.adapters.flow_sqlalchemy import FlowSQLAlchemyRepository
 from domain.repositories.flow_repository import FlowRepository
-from app.use_cases.flow_crud import (
+from app.use_cases.flow.crud import (
     FlowCreate, FlowList, FlowUpdate, FlowDelete,
     FlowStepUpdate, FlowAddStep,
 )

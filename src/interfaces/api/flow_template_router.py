@@ -15,8 +15,8 @@ from app.dto.flow_template_dto import (
 )
 from app.dto.flow_dto import FlowResponse
 from app.dto.flow_execute_dto import ExecuteFlowResponse, StepResultSummary
-from app.use_cases.flow_template import FlowFromTemplate, FlowTemplateNotFoundError
-from app.use_cases.flow_execute import FlowExecute
+from app.use_cases.flow.template import FlowFromTemplate, FlowTemplateNotFoundError
+from app.use_cases.flow.execute import FlowExecute
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 from interfaces.dependencies.org_membership import get_current_org_id, get_current_org
 from domain.entities.organization import Organization

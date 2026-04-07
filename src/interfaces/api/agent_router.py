@@ -6,7 +6,7 @@ Los agentes son globales — no se configuran per-org.
 from fastapi import APIRouter, Depends, Query, status
 
 from app.dto.agent_dto import AgentTaskResponse, AgentTaskListResponse
-from app.use_cases.agent_task_crud import AgentTaskList
+from app.use_cases.execution.agent_task_crud import AgentTaskList
 from interfaces.dependencies.agent_dependencies import get_agent_task_list
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 from interfaces.dependencies.org_membership import get_current_org_id

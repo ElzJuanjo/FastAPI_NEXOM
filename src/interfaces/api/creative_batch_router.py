@@ -18,7 +18,7 @@ from infra.middleware.rate_limiter import limiter
 from infra.events.progress import ProgressEmitter, ProgressEvent
 from starlette.requests import Request
 
-from app.use_cases.creative_batch import (
+from app.use_cases.creative.batch import (
     list_presets, execute_creative_batch, BATCH_PRESETS,
 )
 from app.agents.credit_costs import get_credit_cost
@@ -33,7 +33,7 @@ from app.dto.creative_dto import (
     CreativeBatchResponse, CreativeBatchListResponse, CreativeBatchRequest,
     CreateGalleryRequest, UpdateGalleryRequest, MoveCreativeRequest,
 )
-from app.use_cases.creative_persist import persist_multiple_creatives
+from app.use_cases.creative.persist import persist_multiple_creatives
 
 logger = logging.getLogger(__name__)
 

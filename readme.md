@@ -103,15 +103,15 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 ### Sprint 8 - BD
 
-| Capa         | Archivos                                                                                                            |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| Entidades    | `creative.py`,`landing_page.py`,`copy_asset.py`,`conversion.py`                                             |
-| Repositorios | `creative_repository.py`,`landing_page_repository.py`,`copy_asset_repository.py`,`conversion_repository.py` |
-| Adapters     | `creative_sqlalchemy.py`,`landing_page_sqlalchemy.py`,`copy_asset_sqlalchemy.py`,`conversion_sqlalchemy.py` |
-| DTOs         | `creative_dto.py`,`landing_page_dto.py`                                                                         |
-| Use Cases    | `creative_crud.py`,`landing_page_crud.py`                                                                       |
-| Dependencies | `creative_dependencies.py`,`landing_page_dependencies.py`                                                       |
-| Routers      | `creative_router.py`,`landing_page_router.py`                                                                   |
+| Capa         | Archivos                                                                               |
+| ------------ | -------------------------------------------------------------------------------------- |
+| Entidades    | `creative.py`,`landing_page.py`,`copy_asset.py`                                  |
+| Repositorios | `creative_repository.py`,`landing_page_repository.py`,`copy_asset_repository.py` |
+| Adapters     | `creative_sqlalchemy.py`,`landing_page_sqlalchemy.py`,`copy_asset_sqlalchemy.py` |
+| DTOs         | `creative_dto.py`,`landing_page_dto.py`                                            |
+| Use Cases    | `creative_crud.py`,`landing_page_crud.py`                                          |
+| Dependencies | `creative_dependencies.py`,`landing_page_dependencies.py`                          |
+| Routers      | `creative_router.py`,`landing_page_router.py`                                      |
 
 ### Sprint 9 - Agente de búsqueda de productos
 
@@ -137,8 +137,6 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/orchestration/router_node.py`                     | Un LLM decide qué agente debe responder.                             |
 | `app/orchestration/executor_node.py`                   | Ejecuta el agente seleccionado por el router.                         |
 | `app/orchestration/orchestrator.py`                    | Orquestador principal de NexOS — LangGraph StateGraph.               |
-| `app/dto/orchestrator_dto.py`                          | DTOs para el orquestador.                                             |
-| `interfaces/api/orchestrator_router.py`                | Endpoint del orquestador — punto de entrada principal de NexOS.      |
 | `app/agents/general_assistant_agent.py`                | Maneja solicitudes ambiguas, saluda, guía al usuario y sugiere.      |
 | `app/orchestration/flow_state.py`                      | Estado para la ejecución de un Flow multi-agente.                    |
 | `app/orchestration/flow_planner.py`                    | Analiza dependencias entre steps y genera lotes de ejecución.        |

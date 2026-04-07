@@ -14,7 +14,7 @@ from domain.entities.agent import AgentTask
 from app.orchestration.flow_state import FlowExecutionState
 from app.orchestration.flow_executor import execute_flow
 from app.agents.credit_costs import get_credit_cost, estimate_flow_credits
-from app.use_cases.content_sanitizer import strip_internal_json
+from app.use_cases.conversation.content_sanitizer import strip_internal_json
 from domain.entities.conversation import Conversation, ConversationMessage
 
 
@@ -149,7 +149,7 @@ class FlowExecute:
                 step_images = output.get("images", [])
                 if step_images:
                     try:
-                        from app.use_cases.creative_persist import persist_creative
+                        from app.use_cases.creative.persist import persist_creative
                         session = self._flow_repo._session
                         gen_params = output.get("generation_params") if isinstance(output.get("generation_params"), dict) else {}
 
@@ -173,7 +173,7 @@ class FlowExecute:
                 lp_content = output.get("content", "")
                 if lp_content and len(lp_content) > 200:
                     try:
-                        from app.use_cases.landing_auto_persist import auto_persist_landing_sections
+                        from app.use_cases.landing.auto_persist import auto_persist_landing_sections
                         session = self._flow_repo._session
                         await auto_persist_landing_sections(
                             session=session,
@@ -190,7 +190,7 @@ class FlowExecute:
                 br_content = output.get("content", "")
                 if br_content and len(br_content) > 300:
                     try:
-                        from app.use_cases.brand_auto_persist import auto_persist_brand_identity
+                        from app.use_cases.brand.auto_persist import auto_persist_brand_identity
                         session = self._flow_repo._session
                         await auto_persist_brand_identity(
                             session=session,
@@ -206,7 +206,7 @@ class FlowExecute:
                 copy_content = output.get("content", "")
                 if copy_content:
                     try:
-                        from app.use_cases.copy_auto_persist import auto_persist_copy_assets
+                        from app.use_cases.copy_asset.auto_persist import auto_persist_copy_assets
                         session = self._flow_repo._session
                         await auto_persist_copy_assets(
                             session=session,
@@ -223,7 +223,7 @@ class FlowExecute:
                 ps_content = output.get("content", "")
                 if ps_content:
                     try:
-                        from app.use_cases.product_auto_persist import auto_persist_winner_products
+                        from app.use_cases.product.auto_persist import auto_persist_winner_products
                         session = self._flow_repo._session
                         raw_scraped = output.get("scraped_sources") or {}
                         await auto_persist_winner_products(

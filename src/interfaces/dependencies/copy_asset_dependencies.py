@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infra.config.database import get_session
 from infra.adapters.copy_asset_sqlalchemy import CopyAssetSQLAlchemyRepository
 from domain.repositories.copy_asset_repository import CopyAssetRepository
-from app.use_cases.copy_asset_crud import CopyAssetCreate, CopyAssetList, CopyAssetUpdate, CopyAssetDelete
+from app.use_cases.copy_asset.crud import CopyAssetCreate, CopyAssetList, CopyAssetUpdate, CopyAssetDelete
 
 
 def get_copy_asset_repository(session: AsyncSession = Depends(get_session)) -> CopyAssetRepository:

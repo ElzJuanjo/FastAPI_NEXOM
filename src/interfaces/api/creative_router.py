@@ -5,7 +5,7 @@ from app.dto.creative_dto import (
     CreateCreativeRequest, UpdateCreativeRequest,
     CreativeResponse, CreativeListResponse,
 )
-from app.use_cases.creative_crud import CreativeCreate, CreativeList, CreativeUpdate, CreativeDelete, CreativeNotFoundError
+from app.use_cases.creative.crud import CreativeCreate, CreativeList, CreativeUpdate, CreativeDelete, CreativeNotFoundError
 from interfaces.dependencies.creative_dependencies import (
     get_creative_create, get_creative_list, get_creative_update, get_creative_delete,
 )

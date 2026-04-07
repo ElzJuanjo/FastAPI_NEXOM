@@ -1,8 +1,8 @@
-"""sprint 21
+"""make migrate
 
-Revision ID: 1deea3bfd20d
+Revision ID: eff7ae2150f7
 Revises: 
-Create Date: 2026-04-01 12:31:03.148027
+Create Date: 2026-04-07 00:24:07.160500
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '1deea3bfd20d'
+revision: str = 'eff7ae2150f7'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -200,31 +200,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_conv_messages_conv_created', 'conversation_messages', ['conversation_id', 'created_at'], unique=False)
-    op.create_table('conversion_analyses',
-    sa.Column('brand_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('analyzed_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('aov_usd', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('aov_target_usd', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('cltv_usd', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('cltv_target_usd', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('conversion_rate_pct', sa.Float(), nullable=True),
-    sa.Column('conversion_rate_target_pct', sa.Float(), nullable=True),
-    sa.Column('repurchase_rate_pct', sa.Float(), nullable=True),
-    sa.Column('repurchase_rate_target_pct', sa.Float(), nullable=True),
-    sa.Column('cart_abandonment_pct', sa.Float(), nullable=True),
-    sa.Column('cart_abandonment_target_pct', sa.Float(), nullable=True),
-    sa.Column('upsell_rate_pct', sa.Float(), nullable=True),
-    sa.Column('upsell_rate_target_pct', sa.Float(), nullable=True),
-    sa.Column('potential_revenue_usd', sa.Numeric(precision=12, scale=2), nullable=True),
-    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['brand_id'], ['brands.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_conv_analyses_brand_date', 'conversion_analyses', ['brand_id', 'analyzed_at'], unique=False)
-    op.create_index(op.f('ix_conversion_analyses_deleted_at'), 'conversion_analyses', ['deleted_at'], unique=False)
     op.create_table('flow_steps',
     sa.Column('flow_id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
@@ -373,26 +348,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('landing_page_id', 'order', name='uq_landing_section_order')
     )
     op.create_index(op.f('ix_landing_page_sections_deleted_at'), 'landing_page_sections', ['deleted_at'], unique=False)
-    op.create_table('optimization_recommendations',
-    sa.Column('analysis_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('title', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('impact', sa.Enum('HIGH', 'MEDIUM', 'LOW', name='recommendationimpact'), nullable=False),
-    sa.Column('effort', sa.Enum('LOW', 'MEDIUM', 'HIGH', name='recommendationeffort'), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'APPLIED', 'TESTING', 'REJECTED', name='recommendationstatus'), nullable=False),
-    sa.Column('ab_test_active', sa.Boolean(), nullable=False),
-    sa.Column('applied_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('expected_uplift_pct', sa.Float(), nullable=True),
-    sa.Column('actual_uplift_pct', sa.Float(), nullable=True),
-    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['analysis_id'], ['conversion_analyses.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_opt_rec_analysis_status', 'optimization_recommendations', ['analysis_id', 'status'], unique=False)
-    op.create_index(op.f('ix_optimization_recommendations_deleted_at'), 'optimization_recommendations', ['deleted_at'], unique=False)
     op.create_table('creatives',
     sa.Column('product_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
@@ -429,9 +384,6 @@ def downgrade() -> None:
     op.drop_index('ix_creatives_product_status', table_name='creatives')
     op.drop_index(op.f('ix_creatives_deleted_at'), table_name='creatives')
     op.drop_table('creatives')
-    op.drop_index(op.f('ix_optimization_recommendations_deleted_at'), table_name='optimization_recommendations')
-    op.drop_index('ix_opt_rec_analysis_status', table_name='optimization_recommendations')
-    op.drop_table('optimization_recommendations')
     op.drop_index(op.f('ix_landing_page_sections_deleted_at'), table_name='landing_page_sections')
     op.drop_table('landing_page_sections')
     op.drop_index(op.f('ix_creative_batches_deleted_at'), table_name='creative_batches')
@@ -458,9 +410,6 @@ def downgrade() -> None:
     op.drop_index('ix_flow_steps_flow_id', table_name='flow_steps')
     op.drop_index(op.f('ix_flow_steps_deleted_at'), table_name='flow_steps')
     op.drop_table('flow_steps')
-    op.drop_index(op.f('ix_conversion_analyses_deleted_at'), table_name='conversion_analyses')
-    op.drop_index('ix_conv_analyses_brand_date', table_name='conversion_analyses')
-    op.drop_table('conversion_analyses')
     op.drop_index('ix_conv_messages_conv_created', table_name='conversation_messages')
     op.drop_table('conversation_messages')
     op.drop_index('ix_subscriptions_stripe_sub', table_name='subscriptions')

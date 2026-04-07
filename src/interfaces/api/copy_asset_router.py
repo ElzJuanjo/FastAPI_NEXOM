@@ -10,7 +10,7 @@ from app.dto.copy_asset_dto import (
     CreateCopyAssetRequest, UpdateCopyAssetRequest,
     CopyAssetResponse, CopyAssetListResponse,
 )
-from app.use_cases.copy_asset_crud import (
+from app.use_cases.copy_asset.crud import (
     CopyAssetCreate, CopyAssetList, CopyAssetUpdate, CopyAssetDelete,
     CopyAssetNotFoundError,
 )

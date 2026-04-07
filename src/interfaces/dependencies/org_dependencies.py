@@ -10,10 +10,10 @@ from infra.adapters.plan_sqlalchemy import PlanSQLAlchemyRepository
 from infra.adapters.organization_sqlalchemy import OrganizationSQLAlchemyRepository
 from domain.repositories.plan_repository import PlanRepository
 from domain.repositories.organization_repository import OrganizationRepository
-from app.use_cases.org_create import OrgCreate
-from app.use_cases.org_list import OrgList
-from app.use_cases.org_update import OrgUpdate, OrgChangePlan
-from app.use_cases.plan_seed import PlanSeed
+from app.use_cases.org.create import OrgCreate
+from app.use_cases.org.list import OrgList
+from app.use_cases.org.update import OrgUpdate, OrgChangePlan
+from app.use_cases.org.plan_seed import PlanSeed
 
 
 # ---------------------------------------------------------------------------

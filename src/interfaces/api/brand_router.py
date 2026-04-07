@@ -10,7 +10,7 @@ from app.dto.brand_dto import (
     CreateBrandRequest, UpdateBrandRequest,
     BrandResponse, BrandListResponse,
 )
-from app.use_cases.brand_crud import BrandCreate, BrandList, BrandUpdate, BrandDelete, BrandNotFoundError
+from app.use_cases.brand.crud import BrandCreate, BrandList, BrandUpdate, BrandDelete, BrandNotFoundError
 from interfaces.dependencies.brand_dependencies import (
     get_brand_create, get_brand_list, get_brand_update, get_brand_delete,
 )
@@ -54,7 +54,7 @@ async def list_brands(
 @router.get("/templates", response_model=list)
 async def list_brand_templates():
     """Lista templates de identidad de marca por nicho."""
-    from app.use_cases.brand_templates import get_brand_templates
+    from app.use_cases.brand.templates import get_brand_templates
     return get_brand_templates()
 
 
@@ -67,7 +67,7 @@ async def create_brand_from_template(
     session: AsyncSession = Depends(get_session),
 ):
     """Crea una marca a partir de un template predefinido."""
-    from app.use_cases.brand_templates import get_template_by_id
+    from app.use_cases.brand.templates import get_template_by_id
     template = get_template_by_id(template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Template no encontrado")
@@ -144,7 +144,7 @@ async def export_brand_pdf(
     session: AsyncSession = Depends(get_session),
 ):
     """Exporta brand guidelines como PDF."""
-    from app.use_cases.brand_export_pdf import export_brand_guidelines_pdf
+    from app.use_cases.brand.export_pdf import export_brand_guidelines_pdf
     from fastapi.responses import Response
 
     # Cargar brand

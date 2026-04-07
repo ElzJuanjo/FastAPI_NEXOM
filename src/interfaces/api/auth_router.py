@@ -21,16 +21,16 @@ from app.dto.auth_dto import (
     ForgotPasswordRequest, ForgotPasswordResponse,
     ResetPasswordRequest, ResetPasswordResponse,
 )
-from app.use_cases.auth_register import AuthRegister, EmailAlreadyExistsError
-from app.use_cases.auth_login import AuthLogin, InvalidCredentialsError, InactiveUserError
-from app.use_cases.auth_refresh import AuthRefresh, InvalidRefreshTokenError
+from app.use_cases.auth.register import AuthRegister, EmailAlreadyExistsError
+from app.use_cases.auth.login import AuthLogin, InvalidCredentialsError, InactiveUserError
+from app.use_cases.auth.refresh import AuthRefresh, InvalidRefreshTokenError
 from interfaces.dependencies.auth_dependencies import (
     get_auth_register, get_auth_login, get_auth_refresh,
     get_current_user_id, get_user_repository,
 )
 from domain.repositories.user_repository import UserRepository
 from infra.tools.google_oauth_client import get_google_login_url, GoogleOAuthError
-from app.use_cases.auth_google import GoogleAuth, GoogleAuthError
+from app.use_cases.auth.google import GoogleAuth, GoogleAuthError
 from infra.config.security import create_verification_token, decode_verification_token
 from infra.tools.email_client import send_verification_email
 

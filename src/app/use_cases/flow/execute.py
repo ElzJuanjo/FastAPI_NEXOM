@@ -135,7 +135,7 @@ class FlowExecute:
                 status=StepStatus.COMPLETED if output["status"] == "completed" else StepStatus.ERROR,
                 flow_step_id=step.id,
                 input_payload={"step_name": step.name, "agent_type": step.agent_type},
-                output_payload={"content": (output.get("content") or "")[:5000]},
+                output_payload={"content": output.get("content") or ""},
                 error_message=output.get("error"),
                 credits_used=get_credit_cost(step.agent_type) if output["status"] == "completed" else 0,
                 started_at=flow.started_at,
@@ -304,6 +304,8 @@ class FlowExecute:
                         "step_order": step.order,
                         "duration_ms": output.get("duration_ms", 0),
                         "images": output.get("images"),
+                        "prompt_suggestions": output.get("prompt_suggestions"),
+                        "generation_params": output.get("generation_params"),
                     },
                 )
                 session.add(assistant_msg)

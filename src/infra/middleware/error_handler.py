@@ -18,7 +18,7 @@ logger = structlog.get_logger()
 # Excepciones de dominio base
 # ---------------------------------------------------------------------------
 
-class NexOSError(Exception):
+class NEXOMError(Exception):
     """Excepción base de NEXOM."""
     status_code: int = 500
     error_code: str = "INTERNAL_ERROR"
@@ -30,31 +30,31 @@ class NexOSError(Exception):
         super().__init__(self.message)
 
 
-class NotFoundError(NexOSError):
+class NotFoundError(NEXOMError):
     status_code = 404
     error_code = "NOT_FOUND"
     message = "Recurso no encontrado"
 
 
-class ForbiddenError(NexOSError):
+class ForbiddenError(NEXOMError):
     status_code = 403
     error_code = "FORBIDDEN"
     message = "No tienes permisos para esta acción"
 
 
-class QuotaExceededError(NexOSError):
+class QuotaExceededError(NEXOMError):
     status_code = 429
     error_code = "QUOTA_EXCEEDED"
     message = "Cuota mensual excedida"
 
 
-class ExternalServiceError(NexOSError):
+class ExternalServiceError(NEXOMError):
     status_code = 502
     error_code = "EXTERNAL_SERVICE_ERROR"
     message = "Error en servicio externo"
 
 
-class ValidationError(NexOSError):
+class ValidationError(NEXOMError):
     status_code = 422
     error_code = "VALIDATION_ERROR"
     message = "Error de validación"
@@ -64,10 +64,10 @@ class ValidationError(NexOSError):
 # Handlers
 # ---------------------------------------------------------------------------
 
-async def nexos_error_handler(request: Request, exc: NexOSError) -> JSONResponse:
+async def nexom_error_handler(request: Request, exc: NEXOMError) -> JSONResponse:
     """Handler para excepciones de dominio de NEXOM."""
     logger.warning(
-        "nexos_error",
+        "nexom_error",
         error_code=exc.error_code,
         message=exc.message,
         detail=exc.detail,

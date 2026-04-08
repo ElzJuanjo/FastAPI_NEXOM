@@ -86,11 +86,11 @@ async def router_node(state: OrchestratorState) -> dict:
         
     llm = get_chat_model()
 
-    # Construir contexto con historial (últimos 10 mensajes)
+    # Construir contexto con historial (últimos 12 mensajes)
     conversation_history = state.get("context", {}).get("conversation_history", [])
     history_text = ""
     if conversation_history:
-        recent = conversation_history[-10:]
+        recent = conversation_history[-12:]
         history_parts = []
 
         # Find the last assistant message index
@@ -103,8 +103,8 @@ async def router_node(state: OrchestratorState) -> dict:
         for i, msg in enumerate(recent):
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            # Give the last assistant message more space for numbered options
-            max_len = 800 if i == last_assistant_idx else 300
+            # Last assistant message gets more space (critical for numbered option detection)
+            max_len = 1500 if i == last_assistant_idx else 500
             if len(content) > max_len:
                 content = content[:max_len] + "..."
             history_parts.append(f"[{role}]: {content}")

@@ -4,8 +4,9 @@ Usa el agente de imágenes con su system_prompt profesional como base,
 y genera variaciones controladas de estilo y formato.
 La cantidad de imágenes generadas es exacta al preset seleccionado.
 
-v2: Adds product image reference for realistic generation and
-    prompt packs with ready-to-use prompts for each creative.
+v3: Reference images are now handled via multimodal injection in the
+    OpenRouter client — no need to inject URLs as text in prompts.
+    Prompt packs generated for each style variation.
 """
 
 from __future__ import annotations
@@ -189,9 +190,10 @@ async def execute_creative_batch(
     """
     Ejecuta un batch usando el agente de imágenes.
     Genera exactamente la cantidad de imágenes del preset.
-    If product_image_url is provided, it's passed as visual reference
-    to generate images based on the real product appearance.
-    Also generates a prompt pack with ready-to-use prompts for each variation.
+
+    product_image_url is passed through to the image generation agent,
+    which now handles it via multimodal injection (the model actually
+    sees the real product image, not just a URL string).
     """
     preset = BATCH_PRESETS.get(preset_id, BATCH_PRESETS["starter"])
     variations = preset["variations"]
@@ -204,16 +206,6 @@ async def execute_creative_batch(
     base_input = f"{product_name}. {product_description}"
     if brand_palette:
         base_input += f". Brand colors: {brand_palette}"
-
-    # If we have a real product image, instruct the model to use it as reference
-    reference_instruction = ""
-    if product_image_url:
-        reference_instruction = (
-            f". IMPORTANT: Use the provided reference image of the real product as the base. "
-            f"The generated image MUST closely match the real product's appearance, shape, color, "
-            f"and details. Do NOT invent a different product — adapt the REAL product into the requested style. "
-            f"Reference image: {product_image_url}"
-        )
 
     results = []
     total_generated = 0
@@ -237,14 +229,15 @@ async def execute_creative_batch(
                 detail=f"{format_info['platform']} ({format_info['aspect_ratio']})",
             )
 
-        user_input = f"{base_input}. Style: {style_info['suffix']}{reference_instruction}"
+        user_input = f"{base_input}. Style: {style_info['suffix']}"
 
         try:
             context = {
                 "aspect_ratio": format_info["aspect_ratio"],
                 "style": variation["style"],
             }
-            # Pass product image URL in context for multimodal models
+            # Pass product image URL — the agent + openrouter_client handle
+            # multimodal injection (download → base64 → inject as image content)
             if product_image_url:
                 context["reference_image_url"] = product_image_url
 
@@ -271,6 +264,7 @@ async def execute_creative_batch(
                     "prompt_used": user_input,
                     "model": result.get("model", ""),
                     "prompt_pack": style_prompts,
+                    "has_reference": result.get("generation_params", {}).get("has_reference", False),
                 })
 
                 if progress_emitter:

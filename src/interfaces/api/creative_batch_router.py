@@ -487,6 +487,23 @@ async def _finalize_batch(
     batch.credits_consumed = (batch.credits_consumed or 0) + new_credits
     batch.status = FlowStatus.COMPLETED if new_generated > 0 else FlowStatus.ERROR
 
+    # ── Persist prompt_pack in batch.config so it survives page reloads ──
+    prompt_pack = batch_result.get("prompt_pack", [])
+    if prompt_pack:
+        from sqlalchemy.orm.attributes import flag_modified
+        batch_config = batch.config or {}
+        # Merge with existing prompt_pack (for accumulated batches)
+        existing_pack = batch_config.get("prompt_pack", [])
+        # Dedup by prompt text
+        existing_prompts = {p["prompt"] for p in existing_pack}
+        for p in prompt_pack:
+            if p["prompt"] not in existing_prompts:
+                existing_pack.append(p)
+                existing_prompts.add(p["prompt"])
+        batch_config["prompt_pack"] = existing_pack
+        batch.config = batch_config
+        flag_modified(batch, "config")
+
     # Charge credits
     organization.credits_used_this_month += new_credits
 

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from infra.config.logging import setup_logging
 from infra.middleware.request_context import RequestContextMiddleware
 from infra.middleware.error_handler import (
-    NexOSError, nexos_error_handler,
+    NEXOMError, nexom_error_handler,
     http_exception_handler, unhandled_exception_handler,
 )
 from infra.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
@@ -51,7 +51,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Error handlers (orden importa: más específico primero)
-app.add_exception_handler(NexOSError, nexos_error_handler)
+app.add_exception_handler(NEXOMError, nexom_error_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 

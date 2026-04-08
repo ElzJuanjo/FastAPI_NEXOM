@@ -78,11 +78,21 @@ class BaseAgent(ABC):
     
 
     def _build_messages_with_history(self, user_content: str, context: dict | None = None) -> list[dict]:
+        """
+        Build messages list including conversation history.
+        
+        Truncation limits are generous to preserve context quality:
+        - Last assistant message: 6000 chars (was 3000) — this is the most
+          important for continuity and numbered-option selection.
+        - Other messages: 3000 chars (was 1500) — enough for detailed
+          product analyses, brand briefs, etc.
+        - Keep last 12 messages (was 10) for deeper context.
+        """
         messages = []
 
         if context and "_conversation_history" in context:
             history = context["_conversation_history"]
-            recent = history[-10:] if len(history) > 10 else history
+            recent = history[-12:] if len(history) > 12 else history
 
             last_assistant_idx = -1
             for i in range(len(recent) - 1, -1, -1):
@@ -93,7 +103,8 @@ class BaseAgent(ABC):
             for i, msg in enumerate(recent):
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
-                max_len = 3000 if i == last_assistant_idx else 1500
+                # Last assistant msg gets the most space (critical for context)
+                max_len = 6000 if i == last_assistant_idx else 3000
                 if len(content) > max_len:
                     content = content[:max_len] + "\n\n[... truncated ...]"
                 messages.append({"role": role, "content": content})

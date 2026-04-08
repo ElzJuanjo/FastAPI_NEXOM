@@ -90,5 +90,7 @@ async def run_orchestrator(
         "dropi_data": agent_output.get("dropi_data"),
         "images": agent_output.get("images"),
         "image_count": agent_output.get("image_count"),
+        "generation_params": agent_output.get("generation_params"),
+        "prompt_suggestions": agent_output.get("prompt_suggestions"),
         "error": final_state.get("error"),
     }

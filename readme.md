@@ -188,11 +188,12 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 ### Sprint 15 - Persistencia de imágenes
 
-| Archivo                               | Propósito                                                             |
-| ------------------------------------- | ---------------------------------------------------------------------- |
-| `infra/tools/s3_client.py`          | Cliente async para subir archivos a S3.                                |
-| `app/use_cases/creative_persist.py` | Utilidad para persistir imágenes generadas como Creatives en BD + S3. |
-| `domain/entities/creative_batch.py` | Agrupa creativos generados en una sola ejecución.                     |
+| Archivo                                   | Propósito                                                             |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| `infra/tools/s3_client.py`              | Cliente async para subir archivos a S3.                                |
+| `app/use_cases/creative_persist.py`     | Utilidad para persistir imágenes generadas como Creatives en BD + S3. |
+| `domain/entities/creative_batch.py`     | Agrupa creativos generados en una sola ejecución.                     |
+| `infra/tools/image_reference_finder.py` | Busca fotos reales de productos en la web.                             |
 
 ### Sprint 16 - Historial de conversación
 

@@ -1,15 +1,23 @@
 """
 Cliente HTTP async para OpenRouter API.
 Soporta chat completions con cualquier modelo disponible en OpenRouter.
+
+v2: Multimodal support — image_generation accepts reference_image_url,
+    downloads it, converts to base64, injects as vision content so
+    Gemini can SEE the real product before generating.
 """
 
 from __future__ import annotations
 
+import base64
+import logging
 from typing import Optional
 
 import httpx
 
 from infra.config.database import settings
+
+logger = logging.getLogger(__name__)
 
 
 class OpenRouterError(Exception):
@@ -91,13 +99,14 @@ class OpenRouterClient:
             "tokens_completion": usage.get("completion_tokens", 0),
             "tokens_total": usage.get("total_tokens", 0),
         }
-        
+
     async def image_generation(
         self,
         prompt: str,
         model: str = "google/gemini-3.1-flash-image-preview",
         aspect_ratio: str = "1:1",
         system_prompt: str | None = None,
+        reference_image_url: str | None = None,
     ) -> dict:
         """
         Genera una imagen usando modelos con output_modalities image.
@@ -107,6 +116,10 @@ class OpenRouterClient:
             model: Modelo de generación de imágenes
             aspect_ratio: Relación de aspecto (1:1, 16:9, 4:5, 9:16)
             system_prompt: Prompt de sistema opcional
+            reference_image_url: URL de imagen de referencia del producto real.
+                                 Se descarga, convierte a base64, e inyecta como
+                                 contenido multimodal para que el modelo VEA el
+                                 producto real antes de generar.
 
         Returns:
             Dict con: images (list of base64), text (descripción), model, tokens
@@ -116,7 +129,34 @@ class OpenRouterClient:
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
 
-        messages.append({"role": "user", "content": prompt})
+        # ── Build user message (text-only or multimodal) ──
+        if reference_image_url:
+            ref_b64 = await self._download_image_as_base64(reference_image_url)
+
+            if ref_b64:
+                user_content = [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": ref_b64},
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "The image above is a REFERENCE PHOTO of the real product. "
+                            "Your generated image MUST closely match this product's real "
+                            "appearance, shape, colors, textures, and proportions. "
+                            "Do NOT invent a different product.\n\n"
+                            f"Now generate: {prompt}"
+                        ),
+                    },
+                ]
+                messages.append({"role": "user", "content": user_content})
+                logger.info("Multimodal reference injected for image generation")
+            else:
+                messages.append({"role": "user", "content": prompt})
+                logger.warning("Reference image download failed, using text-only prompt")
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": model,
@@ -148,13 +188,11 @@ class OpenRouterClient:
         choice = data["choices"][0]
         usage = data.get("usage", {})
 
-        # Extraer imágenes y texto del response
         images = []
         text_content = ""
 
         content = choice.get("message", {}).get("content", "")
 
-        # El content puede ser string o array de parts
         if isinstance(content, list):
             for part in content:
                 if part.get("type") == "image_url":
@@ -164,14 +202,12 @@ class OpenRouterClient:
         elif isinstance(content, str):
             text_content = content
 
-        # También buscar en el campo images directo
         msg_images = choice.get("message", {}).get("images", [])
         if msg_images:
             for img in msg_images:
                 if isinstance(img, str):
                     images.append(img)
                 elif isinstance(img, dict):
-                    # Normalizar dict → string base64/URL
                     url = (
                         img.get("image_url", {}).get("url")
                         or img.get("url")
@@ -189,6 +225,54 @@ class OpenRouterClient:
             "tokens_completion": usage.get("completion_tokens", 0),
             "tokens_total": usage.get("total_tokens", 0),
         }
+
+    # ── Private helpers ───────────────────────────────────────────────────
+
+    async def _download_image_as_base64(self, url: str) -> str | None:
+        """
+        Download an image from URL and return as data:image/...;base64,... string.
+        Returns None if download fails.
+        """
+        try:
+            async with httpx.AsyncClient(
+                timeout=15.0,
+                follow_redirects=True,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/131.0.0.0 Safari/537.36"
+                    ),
+                },
+            ) as client:
+                response = await client.get(url)
+
+            if response.status_code != 200:
+                logger.warning(f"Image download failed: HTTP {response.status_code} for {url[:80]}")
+                return None
+
+            content_type = response.headers.get("content-type", "image/jpeg")
+            if ";" in content_type:
+                content_type = content_type.split(";")[0].strip()
+
+            if not content_type.startswith("image/"):
+                logger.warning(f"Not an image: {content_type} for {url[:80]}")
+                return None
+
+            body = response.content
+            if len(body) < 1000:
+                logger.warning(f"Image too small ({len(body)} bytes), skipping: {url[:80]}")
+                return None
+            if len(body) > 10 * 1024 * 1024:
+                logger.warning(f"Image too large ({len(body)} bytes), skipping: {url[:80]}")
+                return None
+
+            b64 = base64.b64encode(body).decode("utf-8")
+            return f"data:{content_type};base64,{b64}"
+
+        except Exception as e:
+            logger.warning(f"Image download error: {e} for {url[:80]}")
+            return None
 
 
 # Singleton para reutilizar en toda la app

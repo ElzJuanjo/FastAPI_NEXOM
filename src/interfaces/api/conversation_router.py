@@ -243,6 +243,8 @@ async def send_message_stream(
                     "images": s3_urls if s3_urls else None,
                     "credits_consumed": total_credits,
                     "router_reasoning": result.get("router_reasoning"),
+                    "prompt_suggestions": result.get("prompt_suggestions"),
+                    "generation_params": result.get("generation_params"),
                 },
             )
             session.add(assistant_message)
@@ -261,7 +263,7 @@ async def send_message_stream(
                         status="completed" if not result.get("error") else "error",
                         input_payload={"user_input": body.content, "conversation_id": conversation.id},
                         output_payload={
-                            "content": response_content[:500] if response_content else None,
+                            "content": response_content if response_content else None,
                             "images": s3_urls if s3_urls else None,
                             "model": result.get("model"),
                         },

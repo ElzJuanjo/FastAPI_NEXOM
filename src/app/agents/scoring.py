@@ -6,6 +6,11 @@ SCORE_TOTAL = (Ventas × 0.30) + (Margen × 0.25) + (Tendencia × 0.20) + (Compe
 
 Cada componente se normaliza a escala 0-100 antes de ponderar.
 UMBRAL GANADOR: Score ≥ 75/100
+
+v2: Improved scoring for products with partial data.
+    - Reviews count used as sales proxy when sold_quantity is missing.
+    - Free shipping and seller reputation factored in.
+    - Less penalty for missing margin/trend (these require cross-platform data).
 """
 
 from __future__ import annotations
@@ -39,6 +44,8 @@ def score_product(product: dict) -> dict:
     - trend_growth_pct: crecimiento MoM en % (float, ej: 20.0 = 20%)
     - competition_level: nivel de competencia 1-10 (1=baja, 10=alta)
     - rating: rating promedio 0-5
+    - reviews_count: número de reviews (used as sales proxy)
+    - free_shipping: boolean
 
     Retorna el producto enriquecido con:
     - score_total: float 0-100
@@ -51,30 +58,64 @@ def score_product(product: dict) -> dict:
     trend = _num(product.get("trend_growth_pct"), 0)
     competition = _num(product.get("competition_level"), 5)
     rating = _num(product.get("rating"), 0)
+    reviews_count = _num(product.get("reviews_count"), 0)
+    free_shipping = product.get("free_shipping", False)
 
     # ── Handle incomplete data gracefully ──
-    # When sales data is 0 (likely missing, not actually zero), assign a
-    # neutral baseline instead of hard-penalizing. Products scraped via
-    # Google/SerpAPI often lack "X vendidos" in their snippet, which doesn't
-    # mean they have zero sales — it means we couldn't extract the data.
+    
+    # Sales: use reviews as proxy if sold_quantity is 0
     has_sales_data = sales > 0
     if not has_sales_data:
-        # Neutral baseline: 50/100 instead of 0/100 — doesn't reward, doesn't kill
-        sales_score = 50.0
+        if reviews_count > 0:
+            # Reviews typically represent 3-8% of total sales
+            # Use conservative estimate: reviews × 5
+            estimated_sales = reviews_count * 5
+            sales_score = normalize(estimated_sales, 0, 1000)
+        else:
+            # No sales data at all — neutral baseline
+            sales_score = 50.0
     else:
         sales_score = normalize(sales, 0, 1000)
 
-    # Same logic for rating: 0 usually means "not extracted", not "terrible"
+    # Rating: 0 usually means "not extracted", not "terrible"
     has_rating_data = rating > 0
     if not has_rating_data:
-        rating_score = 50.0
+        if reviews_count > 10:
+            # Has reviews but no rating — assume decent (3.8+)
+            rating_score = 70.0
+        else:
+            rating_score = 50.0
     else:
         rating_score = normalize(rating, 0, 5)
 
-    # Normalizar remaining components (0-100)
-    margin_score = normalize(margin, 0, 80)          # 0-80% margen
-    trend_score = normalize(trend, -10, 50)          # -10% a +50% MoM
-    competition_inv = normalize(10 - competition, 0, 10)  # invertir: menos competencia = mejor
+    # Margin: when we don't have cross-platform price comparison,
+    # we can't calculate margin. Use a neutral-positive baseline
+    # instead of 0 (which kills the score unfairly).
+    has_margin_data = margin > 0
+    if not has_margin_data:
+        # Without supplier pricing, assume typical dropshipping margin (~40-50%)
+        # This is neutral — doesn't boost or penalize
+        margin_score = 55.0
+    else:
+        margin_score = normalize(margin, 0, 80)  # 0-80% margen
+
+    # Trend: without historical data, we can't know growth.
+    # Products with high sales are likely trending already.
+    has_trend_data = trend != 0
+    if not has_trend_data:
+        if sales > 200 or (reviews_count > 50):
+            # High-sales products are likely growing
+            trend_score = 65.0
+        else:
+            trend_score = 50.0
+    else:
+        trend_score = normalize(trend, -10, 50)  # -10% a +50% MoM
+
+    # Competition: default to moderate
+    competition_inv = normalize(10 - competition, 0, 10)
+
+    # ── Bonus: free shipping indicates established seller ──
+    shipping_bonus = 3.0 if free_shipping else 0.0
 
     # Fórmula ponderada
     score_total = (
@@ -83,9 +124,10 @@ def score_product(product: dict) -> dict:
         + trend_score * 0.20
         + competition_inv * 0.15
         + rating_score * 0.10
+        + shipping_bonus
     )
 
-    score_total = round(score_total, 1)
+    score_total = round(min(score_total, 100.0), 1)
 
     # Clasificación
     if score_total >= 75:

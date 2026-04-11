@@ -121,8 +121,27 @@ class DropisClient:
         self._ensure_key()
         try:
             data = await asyncio.to_thread(self._get, f"/integrations/products/v2/{product_id}")
-            return self._normalize_product(data) if data else None
+            if not data:
+                return None
+
+            # La API v2 puede devolver el producto envuelto en diferentes keys
+            product_data = data
+            if "name" not in data and "sale_price" not in data:
+                for key in ("objects", "data", "product", "result"):
+                    candidate = data.get(key)
+                    if isinstance(candidate, dict):
+                        product_data = candidate
+                        break
+                    elif isinstance(candidate, list) and candidate:
+                        product_data = candidate[0]
+                        break
+
+            return self._normalize_product(product_data)
         except DropisError:
+            return None
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Dropi get_product({product_id}) error: {e}")
             return None
 
     async def get_product_stock(self, product_id: int) -> Optional[dict]:
@@ -272,56 +291,162 @@ class DropisClient:
 
     def _normalize_product(self, p: dict) -> dict:
         """Normaliza un producto de Dropi al formato interno de NEXOM."""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Debug: log the keys we receive to diagnose mapping issues
+        logger.info(f"Dropi _normalize_product keys: {list(p.keys())[:20]}")
+
+        # Temporary debug: log raw structure of photos and first variation
+        raw_photos = p.get("photos") or p.get("gallery") or []
+        logger.info(f"Dropi raw photos type={type(raw_photos).__name__}, len={len(raw_photos) if isinstance(raw_photos, list) else 'N/A'}, sample={str(raw_photos[:1])[:500] if isinstance(raw_photos, list) and raw_photos else str(raw_photos)[:500]}")
+
+        raw_variations = p.get("variations") or []
+        if isinstance(raw_variations, list) and raw_variations:
+            logger.info(f"Dropi raw variation[0] keys={list(raw_variations[0].keys()) if isinstance(raw_variations[0], dict) else 'not-dict'}, sample={str(raw_variations[0])[:500]}")
+
+        raw_wh = p.get("warehouse_product") or []
+        logger.info(f"Dropi raw warehouse_product type={type(raw_wh).__name__}, len={len(raw_wh) if isinstance(raw_wh, list) else 'N/A'}, sample={str(raw_wh[:1])[:500] if isinstance(raw_wh, list) and raw_wh else str(raw_wh)[:500]}")
+
+        # Name: try multiple possible field names
+        name = (
+            p.get("name")
+            or p.get("title")
+            or p.get("product_name")
+            or ""
+        )
+
+        # Stock from warehouses
         total_stock = 0
-        warehouses = p.get("warehouse_product", [])
-        if warehouses:
-            total_stock = sum(w.get("stock", 0) for w in warehouses)
+        warehouses = p.get("warehouse_product") or p.get("warehouses") or []
+        if isinstance(warehouses, list):
+            total_stock = sum(w.get("stock", 0) for w in warehouses if isinstance(w, dict))
 
-        variations = p.get("variations", [])
-        if variations and total_stock == 0:
-            total_stock = sum(v.get("stock", 0) for v in variations)
+        # Variations — stock lives inside warehouse_product_variation per variation
+        variations = p.get("variations") or []
+        if isinstance(variations, list):
+            for v in variations:
+                if not isinstance(v, dict):
+                    continue
+                # Direct stock on variation
+                var_stock_direct = v.get("stock", 0) or 0
+                # Stock from warehouse_product_variation (array of warehouse entries)
+                wpv = v.get("warehouse_product_variation") or []
+                if isinstance(wpv, list):
+                    wpv_stock = sum(w.get("stock", 0) or 0 for w in wpv if isinstance(w, dict))
+                    var_stock_direct = max(var_stock_direct, wpv_stock)
+                elif isinstance(wpv, dict):
+                    var_stock_direct = max(var_stock_direct, wpv.get("stock", 0) or 0)
+                total_stock += var_stock_direct
 
-        categories = p.get("categories", [])
-        category_name = categories[0].get("name", "") if categories else ""
+        # Categories
+        categories = p.get("categories") or []
+        category_name = ""
+        if isinstance(categories, list) and categories:
+            first_cat = categories[0]
+            if isinstance(first_cat, dict):
+                category_name = first_cat.get("name", "")
+            elif isinstance(first_cat, str):
+                category_name = first_cat
 
-        user = p.get("user", {})
-        supplier_name = user.get("store_name", user.get("name", ""))
+        # Supplier
+        user = p.get("user") or {}
+        if isinstance(user, dict):
+            supplier_name = user.get("store_name") or user.get("name") or ""
+        else:
+            supplier_name = ""
 
-        gallery = p.get("gallery", [])
+        # Image from photos/gallery
+        gallery = p.get("photos") or p.get("gallery") or p.get("images") or []
         image_url = ""
-        if gallery:
-            img = gallery[0]
-            image_url = img.get("url") or img.get("urlS3", "")
-            if image_url and not image_url.startswith("http"):
-                image_url = f"https://dropi.co/storage/{image_url}"
+        if isinstance(gallery, list) and gallery:
+            # Find the main photo first, fallback to first
+            main_photo = next((img for img in gallery if isinstance(img, dict) and img.get("main")), None)
+            img = main_photo or gallery[0]
+            if isinstance(img, dict):
+                # Prefer urlS3 (CDN hosted), then url (legacy path)
+                raw_url = img.get("urlS3") or img.get("url") or img.get("src") or ""
+            elif isinstance(img, str):
+                raw_url = img
+            else:
+                raw_url = ""
+            # Build full URL if relative
+            if raw_url and not raw_url.startswith("http"):
+                image_url = f"https://dropi.co/storage/{raw_url}"
+            else:
+                image_url = raw_url
+                
+        # Fallback: direct image fields
+        if not image_url:
+            image_url = p.get("image_url") or p.get("image") or p.get("thumbnail") or ""
 
+        # Price
+        price = float(p.get("sale_price") or p.get("price") or 0)
+        suggested_price = float(p.get("suggested_price") or p.get("retail_price") or price or 0)
+
+        # Variations normalization
         normalized_variations = []
-        for v in variations:
-            attrs = v.get("attribute_values", [])
-            attr_label = ", ".join(a.get("value", "") for a in attrs) if attrs else ""
+        for v in (variations if isinstance(variations, list) else []):
+            if not isinstance(v, dict):
+                continue
+            attrs = v.get("attribute_values") or v.get("attributes") or []
+            attr_label = ""
+            if isinstance(attrs, list):
+                attr_parts = []
+                for a in attrs:
+                    if isinstance(a, dict):
+                        # Include attribute name if available (e.g., "Tallas Dama: 39")
+                        attr_obj = a.get("attribute") or {}
+                        attr_name = attr_obj.get("name", "") if isinstance(attr_obj, dict) else ""
+                        val = a.get("value", "")
+                        attr_parts.append(f"{attr_name}: {val}" if attr_name else val)
+                    else:
+                        attr_parts.append(str(a))
+                attr_label = ", ".join(attr_parts)
+            elif isinstance(attrs, str):
+                attr_label = attrs
+
+            if not attr_label:
+                attr_label = v.get("description") or v.get("name") or ""
+
+            # Stock from warehouse_product_variation
+            var_stock = 0
+            wpv = v.get("warehouse_product_variation") or []
+            if isinstance(wpv, list):
+                var_stock = sum(w.get("stock", 0) or 0 for w in wpv if isinstance(w, dict))
+            elif isinstance(wpv, dict):
+                var_stock = wpv.get("stock", 0) or 0
+            if not var_stock:
+                var_stock = v.get("stock", 0) or 0
+
             normalized_variations.append({
                 "id": v.get("id"),
                 "name": attr_label,
-                "price": float(v.get("sale_price", 0) or 0),
-                "suggested_price": float(v.get("suggested_price", 0) or 0),
-                "stock": v.get("stock", 0),
-                "sku": v.get("sku", ""),
+                "price": float(v.get("sale_price") or v.get("price") or 0),
+                "suggested_price": float(v.get("suggested_price") or 0),
+                "stock": var_stock,
+                "sku": v.get("sku") or "",
             })
 
-        return {
+        result = {
             "id": p.get("id"),
-            "name": p.get("name", ""),
+            "name": name,
+            "description": p.get("description") or p.get("dropi_app_description") or "",
             "type": p.get("type", "SIMPLE"),
-            "price": float(p.get("sale_price", 0) or 0),
-            "suggested_price": float(p.get("suggested_price", 0) or 0),
+            "price": price,
+            "suggested_price": suggested_price,
             "currency": "COP",
             "category": category_name,
             "stock": total_stock,
             "image_url": image_url,
             "supplier": supplier_name,
-            "sku": p.get("sku", ""),
+            "sku": p.get("sku") or "",
             "variations": normalized_variations,
         }
+
+        logger.info(f"Dropi normalized: name='{name}', price={price}, stock={total_stock}, image={'yes' if image_url else 'no'}, variations={len(normalized_variations)}")
+
+        return result
 
 
 dropi_client = DropisClient()

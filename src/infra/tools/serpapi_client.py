@@ -60,12 +60,17 @@ class SerpAPIClient:
         results = []
 
         for item in data.get("shopping_results", []):
+            product_name = item.get("title", "")
+
+            from urllib.parse import quote_plus
+            product_url = f"https://www.google.com/search?q={quote_plus(product_name)}&udm=28"
+
             results.append({
                 "source": "google_shopping",
-                "name": item.get("title", ""),
+                "name": product_name,
                 "price": self._parse_price(item.get("extracted_price", 0)),
                 "currency": "USD" if country == "us" else "COP",
-                "url": item.get("link", ""),
+                "url": product_url,
                 "image_url": item.get("thumbnail", ""),
                 "seller": item.get("source", ""),
                 "rating": item.get("rating"),

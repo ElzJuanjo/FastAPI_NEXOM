@@ -50,3 +50,14 @@ class ProductResponse(BaseModel):
 
 class ProductListResponse(BaseModel):
     products: list[ProductResponse]
+
+
+class ImportDropiRequest(BaseModel):
+    dropi_product_id: str = Field(min_length=1, max_length=50)
+
+
+class ImportDropiResponse(BaseModel):
+    product: ProductResponse
+    dropi_name: str
+    dropi_stock: int = 0
+    variations_count: int = 0

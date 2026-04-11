@@ -54,24 +54,26 @@ WINNING PRODUCT CRITERIA:
 
 CRITICAL RULES:
 - ONLY use the data provided, do NOT invent products or prices
-- Always cite the source (platform)
 - Compare prices between supplier (AliExpress/Temu) and retail (ML/Amazon/Google Shopping)
 - If insufficient data from a source, state it clearly
 
 RESPONSE FORMAT:
-1. SCORING TABLE: Product | Score | Est. Sales | Margin | Trend | Competition | Rating | Source | Link | Verdict
-2. TOP 3 WINNING PRODUCTS: Those exceeding Score ≥ 75 with justification
+1. SCORING TABLE — use this EXACT markdown table format:
+   | Product | Score | Est. Sales | Margin | Trend | Competition | Rating | Link | Verdict |
+   
+   LINK COLUMN RULES (CRITICAL — READ CAREFULLY):
+   - The data already contains pre-formatted markdown links like: [MercadoLibre](https://real-url)
+   - You MUST copy these links EXACTLY as-is into the Link column. Do NOT modify them.
+   - Do NOT strip the URL and show only the platform name. The link MUST be clickable.
+   - Do NOT show the link anywhere else in your response — ONLY in the table and the PRODUCT_JSON block.
+   - There is NO separate "Source" or "Fuente" column. The Link IS the source reference.
+
+2. TOP 3 WINNING PRODUCTS: Those exceeding Score ≥ 75 with justification.
+   - Reference each product by name only, do NOT repeat the link here.
 3. ARBITRAGE ANALYSIS: Supplier vs retail pricing, cross-platform opportunities
 4. COMPETITION ANALYSIS: Saturation level per product
 5. RECOMMENDATIONS: Prioritized concrete actions
 6. ALERTS: Products to avoid and why
-
-SOURCE LINKS — MANDATORY:
-- EVERY product in the scoring table MUST include the source platform name AND a clickable link to the real listing
-- Use the ACTUAL URL from the scraped data. NEVER invent or fabricate URLs.
-- Format links as markdown: [Platform](https://real-url-here)
-- If a product has no usable URL, link to a search on that platform instead
-- Include links in the TOP 3 section as well so users can verify each product
 
 Respond in the same language the user writes in.
 
@@ -91,9 +93,9 @@ The block MUST follow this exact format:
     "name": "Product Name (clean, concise — no emojis, no source prefix)",
     "description": "Brief product description for catalog (1-2 sentences max)",
     "price_usd": 29.99,
-    "image_url": "https://... (product image URL from source data if available, empty string if not)",
+    "image_url": "https://actual-image-url-from-the-data",
     "source_platform": "mercadolibre|google_shopping|aliexpress|amazon|temu|shopee",
-    "source_url": "https://... (direct link to product listing)",
+    "source_url": "https://actual-product-url-from-the-data",
     "score_total": 82.5,
     "score_breakdown": {"ventas": 85, "margen": 70, "tendencia": 90, "competencia_inv": 80, "rating": 88},
     "rating": 4.5,
@@ -109,6 +111,8 @@ RULES FOR THE JSON BLOCK:
 - Include ONLY products with Score ≥ 75 (winners). Do NOT include potential or discarded products.
 - "name" must be a clean product name suitable for a catalog — no emojis, no "🏆", no source prefix.
 - "price_usd" should be the price converted to USD (approximate). Use 0 if unknown.
+- "image_url" MUST be the actual image URL from the scraped data. NEVER leave empty if data has one.
+- "source_url" MUST be the actual product URL from the scraped data. NEVER invent or fabricate URLs.
 - Include the block ONLY when you have at least 1 winning product.
 - The JSON must be valid — no trailing commas, no comments inside it.
 - Maximum 10 products in the array.
@@ -148,6 +152,7 @@ RULES FOR THE JSON BLOCK:
                     "seller": p.get("seller", "N/A"),
                     "free_shipping": p.get("free_shipping", False),
                     "url": p.get("url", ""),
+                    "image_url": p.get("image_url") or p.get("thumbnail", ""),
                     "reviews_count": p.get("reviews_count", 0),
                 })
 
@@ -165,6 +170,7 @@ RULES FOR THE JSON BLOCK:
                     "rating": _num(p.get("rating")),
                     "seller": p.get("seller", "N/A"),
                     "url": p.get("url", ""),
+                    "image_url": p.get("image_url") or p.get("thumbnail", ""),
                     "reviews_count": p.get("reviews_count", 0),
                 })
 
@@ -184,6 +190,7 @@ RULES FOR THE JSON BLOCK:
                         "rating": _num(p.get("rating")),
                         "seller": p.get("seller", "N/A"),
                         "url": p.get("url", ""),
+                        "image_url": p.get("image_url") or p.get("thumbnail", ""),
                         "reviews_count": p.get("reviews_count", 0),
                     })
 
@@ -199,9 +206,18 @@ RULES FOR THE JSON BLOCK:
                 parts.append(f"🏆 Ganadores (≥75): {len(winners)} | ⚡ Potenciales (50-74): {len(potential)} | ❌ Descartados (<50): {len(discarded)}\n")
 
                 for i, p in enumerate(scored[:20], 1):
+                    raw_url = p.get("url", "").strip()
+                    source_name = p.get("source", "N/A")
+                    image_url = p.get("image_url", "").strip()
+
+                    # Pre-format the link as markdown so the LLM copies it verbatim
+                    if raw_url and raw_url.startswith("http"):
+                        link_md = f"[{source_name}]({raw_url})"
+                    else:
+                        link_md = source_name
+
                     parts.append(
                         f"{i}. {p.get('score_label', '')} {p['name']}\n"
-                        f"   Fuente: {p.get('source', 'N/A')}\n"
                         f"   Precio: {p.get('currency', '')} {_num(p.get('price')):,.0f}\n"
                         f"   Score Total: {p.get('score_total', 0)}/100\n"
                         f"   Desglose → Ventas: {p.get('score_breakdown', {}).get('ventas', 0)} | "
@@ -211,7 +227,8 @@ RULES FOR THE JSON BLOCK:
                         f"Rating: {p.get('score_breakdown', {}).get('rating', 0)}\n"
                         f"   Rating: {p.get('rating', 'N/A')} | Ventas est: {p.get('monthly_sales', 'N/A')} | Reviews: {p.get('reviews_count', 'N/A')}\n"
                         f"   Vendedor: {p.get('seller', 'N/A')}\n"
-                        f"   URL: {p.get('url', '')}"
+                        f"   Link: {link_md}\n"
+                        f"   Imagen: {image_url}"
                     )
 
             # ── Datos crudos por fuente (referencia para el LLM) ──
@@ -280,8 +297,6 @@ RULES FOR THE JSON BLOCK:
 
         # MercadoLibre (siempre disponible, sin API key)
         try:
-            # For generic queries, search for best-sellers to get products
-            # with actual sales history instead of random recent listings
             ml_query = self._enrich_query_for_bestsellers(user_input, country) if is_generic else user_input
             ml_results = await mercadolibre_client.search_products(
                 query=ml_query,
@@ -290,12 +305,9 @@ RULES FOR THE JSON BLOCK:
                 sort="relevance",
             )
 
-            # If generic query and few results with sales data, do a secondary
-            # search with trending categories to complement
             if is_generic:
                 products_with_sales = [p for p in ml_results if (p.get("sold_quantity") or 0) > 0]
                 if len(products_with_sales) < 3:
-                    # Secondary search: trending niches
                     for trending_q in ["gadgets más vendidos", "accesorios trending", "hogar más vendidos"]:
                         try:
                             extra_ml = await mercadolibre_client.search_products(
@@ -304,7 +316,6 @@ RULES FOR THE JSON BLOCK:
                             ml_results.extend(extra_ml)
                         except Exception:
                             pass
-                    # Deduplicate by URL
                     seen_urls = set()
                     deduped = []
                     for p in ml_results:
@@ -349,7 +360,6 @@ RULES FOR THE JSON BLOCK:
                 if isinstance(products, list):
                     scraped_data[source_name] = products
                 elif isinstance(products, str):
-                    # Es un error string (source_error)
                     scraped_data[source_name] = products
         except Exception as e:
             scraped_data["extra_sources_error"] = str(e)

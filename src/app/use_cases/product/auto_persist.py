@@ -258,11 +258,13 @@ def _normalize_product(item: dict) -> dict | None:
         except (ValueError, TypeError):
             pass
 
-    image_url = str(item.get("image_url", "")).strip()
-    if image_url and len(image_url) > 512:
-        image_url = ""
-    if image_url and not image_url.startswith("http"):
-        image_url = ""
+    # Robust image URL extraction — try multiple fields
+    image_url = ""
+    for img_field in ("image_url", "thumbnail", "image", "gallery_url"):
+        candidate = str(item.get(img_field, "")).strip()
+        if candidate and candidate.startswith("http") and len(candidate) <= 512:
+            image_url = candidate
+            break
 
     score_total = item.get("score_total", 0)
     try:
@@ -274,18 +276,20 @@ def _normalize_product(item: dict) -> dict | None:
     if score_total < WINNER_THRESHOLD:
         return None
 
+    # Build source_url with validation
+    raw_source_url = item.get("source_url") or item.get("url", "")
+    source_platform = item.get("source_platform") or item.get("source", "")
+
+    source_url = _ensure_usable_url(raw_source_url, source_platform, name)
+
     # Extra data con toda la metadata del scoring
     extra_data = {
         "auto_persisted": True,
         "source": "product_search_agent",
         "score_total": score_total,
         "score_breakdown": item.get("score_breakdown", {}),
-        "source_platform": item.get("source_platform") or item.get("source", ""),
-        "source_url": _ensure_usable_url(
-            item.get("source_url") or item.get("url", ""),
-            item.get("source_platform") or item.get("source", ""),
-            name,
-        ),
+        "source_platform": source_platform,
+        "source_url": source_url,
         "rating": item.get("rating"),
         "monthly_sales": item.get("monthly_sales"),
         "seller": item.get("seller", ""),

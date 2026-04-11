@@ -143,6 +143,8 @@ async def execute_single_step(
             "dropi_data": result.get("dropi_data"),
             "images": uploaded_urls if uploaded_urls else images,
             "image_count": result.get("image_count"),
+            "prompt_suggestions": result.get("prompt_suggestions"),
+            "generation_params": result.get("generation_params"),
         }
 
     except Exception as e:

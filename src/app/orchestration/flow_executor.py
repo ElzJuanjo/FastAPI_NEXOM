@@ -143,7 +143,6 @@ async def execute_single_step(
             "dropi_data": result.get("dropi_data"),
             "images": uploaded_urls if uploaded_urls else images,
             "image_count": result.get("image_count"),
-            "prompt_suggestions": result.get("prompt_suggestions"),
             "generation_params": result.get("generation_params"),
         }
 
@@ -191,6 +190,12 @@ def _build_step_input(step: dict, context: dict) -> str:
     prev_output = context.get("previous_step_output", "")
     prev_agent = context.get("previous_step_agent", "")
 
+    # ── image_gen after product_search: extract the real product name ──
+    if agent_type == "image_gen" and prev_agent == "product_search" and prev_output:
+        winner_name = _extract_top_product_name(prev_output)
+        if winner_name:
+            product = winner_name
+
     # Build contextual input
     parts = []
 
@@ -226,12 +231,39 @@ def _build_step_input(step: dict, context: dict) -> str:
 
     # Combine everything
     if prev_output and prev_agent:
+        # For image_gen after product_search, don't dump the table — the product name is already in the instruction
+        if agent_type == "image_gen" and prev_agent == "product_search":
+            return f"{instruction}\n\n{context_block}"
         prev_summary = prev_output[:1500]
         return f"{instruction}\n\n{context_block}\n\nPrevious step ({prev_agent}) provided:\n{prev_summary}"
     elif context_block:
         return f"{instruction}\n\n{context_block}"
     else:
         return instruction
+    
+    
+def _extract_top_product_name(content: str) -> str:
+    """Extract the top product name from product_search output."""
+    import re
+    import json
+
+    match = re.search(r'<!--\s*PRODUCT_JSON\s*(\[.*?\])\s*-->', content, re.DOTALL)
+    if match:
+        try:
+            products = json.loads(match.group(1))
+            if isinstance(products, list) and products:
+                best = max(products, key=lambda p: p.get("score_total", 0))
+                return best.get("name", "").strip()
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    table_match = re.search(r'\|\s*([^|]{5,80}?)\s*\|\s*\d{2,3}\.?\d*\s*\|', content)
+    if table_match:
+        name = table_match.group(1).strip().strip("*").strip()
+        if name and not name.lower().startswith("product"):
+            return name
+
+    return ""
 
 
 async def execute_flow(

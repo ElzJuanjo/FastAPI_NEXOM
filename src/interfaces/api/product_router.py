@@ -60,6 +60,7 @@ async def import_from_dropi(
 ):
     """
     Importa un producto desde Dropi por su ID.
+    Persiste con la misma estructura de extra_data que auto_persist
     """
     import re
     from infra.tools.dropi_client import dropi_client, DropisError
@@ -85,35 +86,59 @@ async def import_from_dropi(
             detail=f"Producto Dropi #{dropi_id} no encontrado",
         )
 
-    # Map fields
+    # ── Extract fields from normalized Dropi product ──
     name = dropi_product.get("name", f"Dropi #{dropi_id}")[:255]
-    price_cop = dropi_product.get("suggested_price") or dropi_product.get("price", 0)
-    price_usd = round(float(price_cop) / 4200, 2) if price_cop and float(price_cop) > 0 else None
     image_url = dropi_product.get("image_url", "") or None
     stock = dropi_product.get("stock", 0)
     variations = dropi_product.get("variations", [])
     category = dropi_product.get("category", "")
     supplier = dropi_product.get("supplier", "")
 
-    # Use Dropi's own product description, fallback to category
+    price_proveedor = float(dropi_product.get("price", 0))
+    price_sugerido = float(dropi_product.get("suggested_price", 0)) or price_proveedor
+
+    # USD approximation from suggested price
+    price_usd = round(price_sugerido / 4200, 2) if price_sugerido > 0 else None
+
+    # Margin calculation (suggested vs provider)
+    margin_pct = round(((price_sugerido - price_proveedor) / price_sugerido) * 100, 1) if price_sugerido > 0 and price_proveedor > 0 else 0
+
+    # Clean description from Dropi (strip HTML tags and entities)
     raw_desc = dropi_product.get("description", "")
     if raw_desc:
-        description = re.sub(r'<[^>]+>', '', raw_desc).strip()[:500]
+        import html
+        description = html.unescape(re.sub(r'<[^>]+>', ' ', raw_desc))
+        description = re.sub(r'\s+', ' ', description).strip()[:500]
     else:
-        description = category or "Importado desde Dropi"
+        description = category or name
 
-    # Structured extra_data
+    # ── Build extra_data with SAME structure as auto_persist ──
+    # This is what the frontend reads to render the rich product card
     extra_data = {
-        "dropi_import": True,
-        "source": "dropi",
+        "auto_persisted": True,
+        "source": "dropi_import",
+        "score_total": 0,
+        "score_breakdown": {
+            "ventas": 0,
+            "margen": min(margin_pct, 100),
+            "tendencia": 0,
+            "competencia_inv": 0,
+            "rating": 0,
+        },
         "source_platform": "dropi",
-        "source_url": f"https://dropi.co/catalog/product/{dropi_id}",
-        "price_cop": float(dropi_product.get("price", 0)),
-        "suggested_price_cop": float(price_cop),
+        "source_url": f"https://app.dropi.co/dashboard/product-details/{dropi_id}/{name.lower().replace(' ', '-')}",
+        "rating": 0,
+        "monthly_sales": 0,
+        "seller": supplier,
+        "reviews_count": 0,
+        "currency": "COP",
+        # Dropi-specific extras (not rendered by card but useful)
+        "dropi_import": True,
+        "price_cop_proveedor": price_proveedor,
+        "price_cop_sugerido": price_sugerido,
+        "margin_pct": margin_pct,
         "stock": stock,
         "category": category,
-        "supplier": supplier,
-        "sku": dropi_product.get("sku", ""),
         "type": dropi_product.get("type", "SIMPLE"),
         "variations": variations,
         "variations_count": len(variations),

@@ -18,6 +18,8 @@ import requests as http
 
 from infra.config.database import settings
 
+import logging
+
 
 class DropisError(Exception):
     def __init__(self, status_code: int, detail: str) -> None:
@@ -140,7 +142,6 @@ class DropisClient:
         except DropisError:
             return None
         except Exception as e:
-            import logging
             logging.getLogger(__name__).error(f"Dropi get_product({product_id}) error: {e}")
             return None
 
@@ -291,23 +292,7 @@ class DropisClient:
 
     def _normalize_product(self, p: dict) -> dict:
         """Normaliza un producto de Dropi al formato interno de NEXOM."""
-        import logging
-        logger = logging.getLogger(__name__)
-
-        # Debug: log the keys we receive to diagnose mapping issues
-        logger.info(f"Dropi _normalize_product keys: {list(p.keys())[:20]}")
-
-        # Temporary debug: log raw structure of photos and first variation
-        raw_photos = p.get("photos") or p.get("gallery") or []
-        logger.info(f"Dropi raw photos type={type(raw_photos).__name__}, len={len(raw_photos) if isinstance(raw_photos, list) else 'N/A'}, sample={str(raw_photos[:1])[:500] if isinstance(raw_photos, list) and raw_photos else str(raw_photos)[:500]}")
-
-        raw_variations = p.get("variations") or []
-        if isinstance(raw_variations, list) and raw_variations:
-            logger.info(f"Dropi raw variation[0] keys={list(raw_variations[0].keys()) if isinstance(raw_variations[0], dict) else 'not-dict'}, sample={str(raw_variations[0])[:500]}")
-
-        raw_wh = p.get("warehouse_product") or []
-        logger.info(f"Dropi raw warehouse_product type={type(raw_wh).__name__}, len={len(raw_wh) if isinstance(raw_wh, list) else 'N/A'}, sample={str(raw_wh[:1])[:500] if isinstance(raw_wh, list) and raw_wh else str(raw_wh)[:500]}")
-
+            
         # Name: try multiple possible field names
         name = (
             p.get("name")
@@ -333,7 +318,10 @@ class DropisClient:
                 # Stock from warehouse_product_variation (array of warehouse entries)
                 wpv = v.get("warehouse_product_variation") or []
                 if isinstance(wpv, list):
-                    wpv_stock = sum(w.get("stock", 0) or 0 for w in wpv if isinstance(w, dict))
+                    wpv_stock = sum(
+                        (w.get("stock") or w.get("quantity") or w.get("existencia") or 0)
+                        for w in wpv if isinstance(w, dict)
+                    )
                     var_stock_direct = max(var_stock_direct, wpv_stock)
                 elif isinstance(wpv, dict):
                     var_stock_direct = max(var_stock_direct, wpv.get("stock", 0) or 0)
@@ -372,7 +360,8 @@ class DropisClient:
                 raw_url = ""
             # Build full URL if relative
             if raw_url and not raw_url.startswith("http"):
-                image_url = f"https://dropi.co/storage/{raw_url}"
+                from urllib.parse import quote
+                image_url = f"https://d39ru7awumhhs2.cloudfront.net/{quote(raw_url, safe='/')}"
             else:
                 image_url = raw_url
                 
@@ -413,7 +402,10 @@ class DropisClient:
             var_stock = 0
             wpv = v.get("warehouse_product_variation") or []
             if isinstance(wpv, list):
-                var_stock = sum(w.get("stock", 0) or 0 for w in wpv if isinstance(w, dict))
+                var_stock = sum(
+                    (w.get("stock") or w.get("quantity") or w.get("existencia") or 0)
+                    for w in wpv if isinstance(w, dict)
+                )
             elif isinstance(wpv, dict):
                 var_stock = wpv.get("stock", 0) or 0
             if not var_stock:
@@ -444,7 +436,7 @@ class DropisClient:
             "variations": normalized_variations,
         }
 
-        logger.info(f"Dropi normalized: name='{name}', price={price}, stock={total_stock}, image={'yes' if image_url else 'no'}, variations={len(normalized_variations)}")
+        logging.getLogger(__name__).info(f"Dropi normalized: name='{name}', price={price}, stock={total_stock}, image={'yes' if image_url else 'no'}, variations={len(normalized_variations)}")
 
         return result
 

@@ -130,6 +130,23 @@ async def execute_single_step(
         if uploaded_urls:
             content += "\n\n" + "\n".join(f"![Image {i+1}]({url})" for i, url in enumerate(uploaded_urls))
 
+        # Clean prompt_suggestions for image_gen: use the extracted product name
+        prompt_suggestions = result.get("prompt_suggestions")
+        if agent_type == "image_gen" and prompt_suggestions and isinstance(prompt_suggestions, list):
+            # Get the clean product name from context (set by _build_step_input)
+            clean_product = context.get("product", "") or context.get("brand", "")
+            if clean_product:
+                cleaned = []
+                for ps in prompt_suggestions:
+                    if isinstance(ps, dict) and ps.get("prompt"):
+                        cleaned.append({
+                            **ps,
+                            "prompt": ps["prompt"],  # prompt already uses the clean name from the agent
+                        })
+                    else:
+                        cleaned.append(ps)
+                prompt_suggestions = cleaned
+
         return {
             "step_id": step_id,
             "agent_type": agent_type,
@@ -144,6 +161,7 @@ async def execute_single_step(
             "images": uploaded_urls if uploaded_urls else images,
             "image_count": result.get("image_count"),
             "generation_params": result.get("generation_params"),
+            "prompt_suggestions": prompt_suggestions,
         }
 
     except Exception as e:

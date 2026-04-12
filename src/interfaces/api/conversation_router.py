@@ -141,8 +141,13 @@ async def send_message_stream(
                 session.add(conversation)
                 await session.flush()
 
-            # Guardar mensaje del usuario
-            user_message = ConversationMessage(conversation_id=conversation.id, role="user", content=body.content)
+            # Guardar mensaje del usuario (con imágenes adjuntas si las hay)
+            user_message = ConversationMessage(
+                conversation_id=conversation.id,
+                role="user",
+                content=body.content,
+                meta_data={"images": body.image_urls} if body.image_urls else None,
+            )
             session.add(user_message)
             await session.flush()
 
@@ -153,8 +158,12 @@ async def send_message_stream(
             history = conversation.messages if body.conversation_id else []
             context_messages = _build_context(history, body.content, MAX_CONTEXT_MESSAGES)
 
+            # Build orchestrator context with optional input images
+            orch_context = {"conversation_history": context_messages}
+            if body.image_urls:
+                orch_context["input_images"] = body.image_urls
+
             # Run orchestrator with progress emitter
-            # We run it in a task and consume emitter events
             result_holder = {}
             error_holder = {}
 
@@ -162,7 +171,7 @@ async def send_message_stream(
                 try:
                     r = await run_orchestrator(
                         user_input=body.content,
-                        context={"conversation_history": context_messages},
+                        context=orch_context,
                         progress_emitter=emitter,
                         force_agent=body.force_agent,
                     )
@@ -345,7 +354,7 @@ async def send_message_stream(
                     "role": "user",
                     "content": user_message.content,
                     "agent_type": None,
-                    "meta_data": None,
+                    "meta_data": user_message.meta_data,
                     "created_at": str(user_message.created_at),
                 },
                 "response": {

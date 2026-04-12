@@ -132,3 +132,51 @@ async def delete_s3_object(key: str) -> bool:
     except Exception as e:
         logger.error(f"Error deleting S3 object {key}: {e}")
         return False
+    
+
+async def upload_image_bytes(
+    image_bytes: bytes,
+    content_type: str,
+    org_id: str,
+    prefix: str = "chat-uploads",
+) -> dict:
+    """
+    Sube bytes de imagen directamente a S3.
+    Usado para uploads desde el chat (no base64).
+
+    Returns:
+        {"url": "https://...", "key": "orgs/.../file.png", "size_bytes": 12345}
+    """
+    ext_map = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/gif": "gif",
+    }
+    extension = ext_map.get(content_type, "png")
+
+    key = _build_key(org_id, prefix, extension)
+
+    async with _session.client(
+        "s3",
+        region_name=settings.AWS_REGION,
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+    ) as s3:
+        await s3.put_object(
+            Bucket=settings.S3_BUCKET_NAME,
+            Key=key,
+            Body=image_bytes,
+            ContentType=content_type,
+        )
+
+    url = _get_public_url(key)
+    size_bytes = len(image_bytes)
+
+    logger.info(f"Uploaded chat image to S3: {key} ({size_bytes} bytes)")
+
+    return {
+        "url": url,
+        "key": key,
+        "size_bytes": size_bytes,
+    }

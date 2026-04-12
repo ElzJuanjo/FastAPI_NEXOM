@@ -304,15 +304,21 @@ Respond in the same language the user writes in."""
         if image_type == "logo":
             ref_image_url = ""
         elif not ref_image_url:
-            # No reference provided — search for one automatically
-            try:
-                from infra.tools.image_reference_finder import find_product_reference_image
-                ref_image_url = await find_product_reference_image(user_input) or ""
-                if ref_image_url:
-                    logger.info(f"Auto-reference found: {ref_image_url[:80]}")
-            except Exception as e:
-                logger.warning(f"Auto-reference search failed: {e}")
-                ref_image_url = ""
+            # Primero: usar imagen adjuntada por el usuario
+            user_images = (context or {}).get("input_images") or []
+            if user_images:
+                ref_image_url = user_images[0]
+                logger.info(f"Using user-uploaded image as reference: {ref_image_url[:80]}")
+            else:
+                # Fallback: buscar referencia automáticamente en la web
+                try:
+                    from infra.tools.image_reference_finder import find_product_reference_image
+                    ref_image_url = await find_product_reference_image(user_input) or ""
+                    if ref_image_url:
+                        logger.info(f"Auto-reference found: {ref_image_url[:80]}")
+                except Exception as e:
+                    logger.warning(f"Auto-reference search failed: {e}")
+                    ref_image_url = ""
 
         # Enrich with conversation history
         enriched_input = self._enrich_with_history(user_input, context)

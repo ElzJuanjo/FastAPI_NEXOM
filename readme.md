@@ -237,3 +237,4 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/dto/copy_asset_dto.py`                         | DTOs para CopyAsset.                                                           |
 | `app/use_cases/content_sanitizer.py`                | Sanitiza el content del agente antes de entregarlo al usuario final.           |
 | `app/use_cases/product_auto_persist.py`             | Auto-persistencia de Productos Winners desde output del agente product_search. |
+| `interfaces/api/upload_router.py`                   | Endpoint para subir imágenes al chat (pre-upload antes de enviar mensaje).    |

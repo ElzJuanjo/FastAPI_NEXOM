@@ -131,7 +131,10 @@ class OpenRouterClient:
 
         # ── Build user message (text-only or multimodal) ──
         if reference_image_url:
-            ref_b64 = await self._download_image_as_base64(reference_image_url)
+            if reference_image_url.startswith("data:"):
+                ref_b64 = reference_image_url
+            else:
+                ref_b64 = await self._download_image_as_base64(reference_image_url)
 
             if ref_b64:
                 user_content = [

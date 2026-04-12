@@ -1,13 +1,16 @@
 """
 Clase base abstracta para todos los agentes de NEXOM.
-Soporta historial conversacional para respuestas contextuales.
+Soporta historial conversacional y input de imágenes para respuestas contextuales.
 """
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 
 from infra.tools.openrouter_client import OpenRouterClient
+
+logger = logging.getLogger(__name__)
 
 
 class BaseAgent(ABC):
@@ -33,11 +36,11 @@ class BaseAgent(ABC):
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         """
         Construye la lista de mensajes para el LLM.
-        Incluye historial conversacional si está disponible.
+        Incluye historial conversacional e imágenes si están disponibles.
         """
         clean_context = {
             k: v for k, v in (context or {}).items()
-            if not k.startswith("_")
+            if not k.startswith("_") and k != "input_images"
         }
 
         content = user_input
@@ -45,8 +48,27 @@ class BaseAgent(ABC):
             context_str = "\n".join(f"- {k}: {v}" for k, v in clean_context.items())
             content = f"Context:\n{context_str}\n\nRequest: {user_input}"
 
-        return self._build_messages_with_history(content, context)
+        messages = self._build_messages_with_history(content, context)
 
+        # Inyectar imágenes como contenido multimodal (ya vienen en base64 del executor)
+        input_images = (context or {}).get("input_images") or []
+        if input_images and messages:
+            last_msg = messages[-1]
+            if last_msg.get("role") == "user":
+                multimodal_content = []
+                for b64_url in input_images:
+                    multimodal_content.append({
+                        "type": "image_url",
+                        "image_url": {"url": b64_url},
+                    })
+                text_content = last_msg["content"] if isinstance(last_msg["content"], str) else user_input
+                multimodal_content.append({
+                    "type": "text",
+                    "text": text_content,
+                })
+                messages[-1] = {"role": "user", "content": multimodal_content}
+
+        return messages
 
     async def execute(
         self,
@@ -75,12 +97,11 @@ class BaseAgent(ABC):
             result["truncated"] = False
 
         return result
-    
 
     def _build_messages_with_history(self, user_content: str, context: dict | None = None) -> list[dict]:
         """
         Build messages list including conversation history.
-        
+
         Truncation limits are generous to preserve context quality:
         - Last assistant message: 6000 chars (was 3000) — this is the most
           important for continuity and numbered-option selection.

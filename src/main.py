@@ -29,6 +29,7 @@ from interfaces.api.flow_template_router import router as flow_template_router
 from interfaces.api.creative_batch_router import router as creative_batch_router
 from interfaces.api.conversation_router import router as conversation_router
 from interfaces.api.copy_asset_router import router as copy_asset_router
+from interfaces.api.upload_router import router as upload_router
 
 
 @asynccontextmanager
@@ -83,6 +84,7 @@ app.include_router(flow_template_router, prefix="/api/v1")
 app.include_router(creative_batch_router, prefix="/api/v1")
 app.include_router(conversation_router, prefix="/api/v1")
 app.include_router(copy_asset_router, prefix="/api/v1")
+app.include_router(upload_router, prefix="/api/v1")
 
 
 @app.get("/health")

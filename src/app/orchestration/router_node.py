@@ -115,6 +115,13 @@ async def router_node(state: OrchestratorState) -> dict:
     router_input = f"Current user message: {state['user_input']}"
     if history_text:
         router_input = f"CONVERSATION HISTORY:\n{history_text}\n\n---\n\n{router_input}"
+        
+    input_images = state.get("context", {}).get("input_images", [])
+    if input_images:
+        router_input += f"\n\n[USER ATTACHED {len(input_images)} IMAGE(S)]"
+        # Si no hay texto, la intención más probable es búsqueda visual o referencia para creativo
+        if not state["user_input"].strip():
+            router_input += "\nNote: No text was provided, only image(s). Default to product_search for visual search, or image_gen if context suggests creative work."
 
     messages = [
         SystemMessage(content=ROUTER_SYSTEM_PROMPT),

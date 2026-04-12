@@ -41,7 +41,7 @@ class SendMessageRequest(BaseModel):
     conversation_id: Optional[str] = None
     agent_type: Optional[str] = None
     force_agent: Optional[str] = Field(default=None, description="Force a specific agent, bypassing the router")
-    image_urls: Optional[list[str]] = Field(default=None, max_length=5, description="List of uploaded image URLs or base64 data URIs")
+    image_urls: Optional[list[str]] = Field(default=None, max_length=1, description="List of uploaded image URLs or base64 data URIs")
 
 
 class SendMessageResponse(BaseModel):

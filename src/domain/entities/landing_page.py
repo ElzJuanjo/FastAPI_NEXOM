@@ -27,6 +27,7 @@ class LandingPage(UUIDPk, TimestampMixin, Base):
     status:        Mapped[AssetStatus]   = mapped_column(Enum(AssetStatus), default=AssetStatus.DRAFT, nullable=False)
     published_url: Mapped[Optional[str]] = mapped_column(String(512))
     published_at:  Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    template:      Mapped[Optional[str]] = mapped_column(String(50), default="modern", comment="CSS template: modern | minimal | bold | ecommerce | dark | elegant")
 
     organization: Mapped["Organization"]          = relationship()
     brand:    Mapped["Brand"]                   = relationship(back_populates="landing_pages")
@@ -54,6 +55,8 @@ class LandingPageSection(UUIDPk, TimestampMixin, Base):
     order:           Mapped[int]                  = mapped_column(Integer, nullable=False)
     is_visible:      Mapped[bool]                 = mapped_column(Boolean, default=True)
     content:         Mapped[Optional[dict]]       = mapped_column(JSONB)
+    image_url:       Mapped[Optional[str]]        = mapped_column(String(512), comment="Primary image URL for this section")
+    images:          Mapped[Optional[list]]       = mapped_column(JSONB, comment="Array of image URLs for gallery-type sections")
 
     landing_page: Mapped["LandingPage"] = relationship(back_populates="sections")
 

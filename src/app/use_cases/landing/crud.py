@@ -46,7 +46,7 @@ class LandingPageUpdate:
         for k, v in kwargs.items():
             # Allow explicit None for nullable fields (like brand_id)
             if k == "brand_id":
-                setattr(lp, k, v)  # Can be None or a valid ID
+                setattr(lp, k, v)
             elif v is not None:
                 setattr(lp, k, v)
         return await self._repo.update(lp)
@@ -71,7 +71,14 @@ class LandingSectionUpdate:
         section = await self._repo.get_section_by_id(section_id)
         if not section:
             raise LandingSectionNotFoundError(f"Section {section_id} no encontrada")
+
+        # Campos que permiten ser seteados a None explícitamente
+        nullable_fields = {"image_url", "images", "cta_text", "cta_url", "content"}
+
         for k, v in kwargs.items():
-            if v is not None:
+            if k in nullable_fields:
+                setattr(section, k, v)  # Permite None
+            elif v is not None:
                 setattr(section, k, v)
+
         return await self._repo.update_section(section)

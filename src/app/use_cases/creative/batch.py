@@ -239,7 +239,12 @@ async def execute_creative_batch(
             # Pass product image URL — the agent + openrouter_client handle
             # multimodal injection (download → base64 → inject as image content)
             if product_image_url:
-                context["reference_image_url"] = product_image_url
+                # Si es base64 (del frontend), usar como input_images para que
+                # image_gen_agent lo tome como referencia directa
+                if product_image_url.startswith("data:"):
+                    context["input_images"] = [product_image_url]
+                else:
+                    context["reference_image_url"] = product_image_url
 
             result = await agent.execute(
                 user_input=user_input,

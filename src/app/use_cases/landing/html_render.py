@@ -78,11 +78,12 @@ class LandingHTMLRender:
             body_font=ty.get("body_font", "DM Sans"),
         )
         brand_name = brand.name if brand else lp.name
+        template_id = getattr(lp, "template", None) or "modern"
         sections = sorted(
             [s for s in lp.sections if s.is_visible], key=lambda x: x.order
         )
         rendered = "\n".join(render_section(s, theme) for s in sections)
-        return html_shell(rendered, lp.name, brand_name, theme)
+        return html_shell(rendered, lp.name, brand_name, theme, template_id)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -793,6 +794,13 @@ def render_section(section, theme: Theme) -> str:
         "pricing": _render_offer,
         "faq": _render_faq,
         "cta": _render_cta,
+        "product_gallery": _render_product_gallery,
+        "specs": _render_specs,
+        "video_embed": _render_video_embed,
+        "comparison": _render_comparison,
+        "countdown": _render_countdown,
+        "trust_badges": _render_trust_badges,
+        "brand_story": _render_brand_story,
     }
     renderer = renderers.get(t, _render_fallback)
     return renderer(section, theme)
@@ -815,11 +823,15 @@ def _render_hero(section, theme: Theme) -> str:
         ct.get("trust_line")
         or _extract_field(raw, "confianza", "trust line", "línea de confianza")
     )
-    # Clean trust line of stray markdown
     if trust:
         trust = _strip_markdown(trust).strip(" *")
 
     cta = _extract_cta_text(raw)
+    
+    hero_img = section.image_url or ct.get("image_url", "")
+    img_html = ""
+    if hero_img:
+        img_html = f'<img src="{_e(hero_img)}" alt="{_e(title)}" class="hero-product-img" loading="lazy">'
 
     return f"""<section class="hero">
   <div class="container">
@@ -827,6 +839,7 @@ def _render_hero(section, theme: Theme) -> str:
     <p class="subtitle">{_e(subtitle)}</p>
     <a class="btn btn-primary">{_e(cta)}</a>
     {f'<p class="trust-line">{_e(trust)}</p>' if trust else ''}
+    {img_html}
   </div>
 </section>"""
 
@@ -1306,23 +1319,287 @@ def _lighten(hex_color: str, amount: float = 0.2) -> str:
         return hex_color
 
 
+def _render_product_gallery(section, theme: Theme) -> str:
+    """Renderiza una galería de producto estilo e-commerce (como purocuero.shop)."""
+    title = _extract_title(section, fallback_generic="")
+    images = section.images or []
+    ct = section.content or {}
+    primary_img = section.image_url or (images[0] if images else "")
+    thumb_images = images[:6] if images else []
+    
+    # Product details from content
+    product_name = ct.get("product_name", title or "Producto")
+    price = ct.get("price", "")
+    price_old = ct.get("price_old", "")
+    short_desc = ct.get("short_description", "")
+    variants = ct.get("variants", [])  # [{label: "Color", options: ["Negro", "Café"]}]
+    
+    variants_html = ""
+    for v in variants:
+        opts = "".join(f'<button class="variant-opt">{_e(o)}</button>' for o in v.get("options", []))
+        variants_html += f"""<div class="variant-group">
+            <span class="variant-label">{_e(v.get("label", ""))}</span>
+            <div class="variant-options">{opts}</div>
+        </div>"""
+    
+    thumbs_html = ""
+    for img in thumb_images:
+        thumbs_html += f'<div class="gallery-thumb"><img src="{_e(img)}" alt="Product" loading="lazy"></div>'
+    
+    # If no real images, show placeholder
+    if not primary_img:
+        primary_img = ""
+        img_tag = '<div class="gallery-placeholder">📷 Imagen del producto</div>'
+    else:
+        img_tag = f'<img src="{_e(primary_img)}" alt="{_e(product_name)}" class="gallery-main-img">'
+    
+    body_lines = _clean_body(section.body or "", exclude_title=title)
+    desc_html = "".join(f"<p>{_e(l)}</p>" for l in body_lines[:3])
+    
+    return f"""<section class="product-gallery-section">
+  <div class="container">
+    <div class="product-layout">
+      <div class="product-images">
+        <div class="gallery-main">{img_tag}</div>
+        {f'<div class="gallery-thumbs">{thumbs_html}</div>' if thumbs_html else ''}
+      </div>
+      <div class="product-info">
+        <h1 class="product-title">{_e(product_name)}</h1>
+        {f'<p class="product-short-desc">{_e(short_desc)}</p>' if short_desc else ''}
+        <div class="product-pricing">
+          {f'<span class="price-old">{_e(price_old)}</span>' if price_old else ''}
+          {f'<span class="price-current">{_e(price)}</span>' if price else ''}
+        </div>
+        {variants_html}
+        {desc_html}
+        {f'<a class="btn btn-primary" style="width:100%;margin-top:24px">{_e(section.cta_text or "Agregar al carrito")}</a>' if section.cta_text or True else ''}
+      </div>
+    </div>
+  </div>
+</section>"""
+
+
+def _render_specs(section, theme: Theme) -> str:
+    """Renderiza tabla de especificaciones técnicas."""
+    title = _extract_title(section, fallback_generic="Especificaciones")
+    ct = section.content or {}
+    specs = ct.get("specs", [])  # [{label: "Material", value: "Cuero 100%"}]
+    
+    if not specs:
+        # Try to extract from body
+        for line in (section.body or "").split("\n"):
+            parts = re.split(r"[:\|–—]", line.strip(), maxsplit=1)
+            if len(parts) == 2:
+                label = _strip_markdown(parts[0].strip().strip("*-• "))
+                value = _strip_markdown(parts[1].strip())
+                if label and value and len(label) < 60:
+                    specs.append({"label": label, "value": value})
+    
+    rows = ""
+    for i, spec in enumerate(specs):
+        bg = 'class="alt-row"' if i % 2 == 0 else ''
+        rows += f"""<tr {bg}>
+            <td class="spec-label">{_e(spec.get("label", ""))}</td>
+            <td class="spec-value">{_e(spec.get("value", ""))}</td>
+        </tr>"""
+    
+    return f"""<section class="specs-section">
+  <div class="container">
+    <div class="specs-header">
+      <p class="section-label" style="justify-content:center">Detalles</p>
+      <h2>{_e(title)}</h2>
+    </div>
+    <div class="specs-table-wrap">
+      <table class="specs-table">
+        <tbody>{rows}</tbody>
+      </table>
+    </div>
+  </div>
+</section>"""
+
+
+def _render_video_embed(section, theme: Theme) -> str:
+    """Renderiza un embed de video (YouTube, Vimeo, o URL directa)."""
+    title = _extract_title(section, fallback_generic="")
+    ct = section.content or {}
+    video_url = ct.get("video_url", "")
+    
+    # Convert YouTube URLs to embed format
+    embed_url = video_url
+    if "youtube.com/watch" in video_url:
+        vid_id = re.search(r"v=([^&]+)", video_url)
+        if vid_id:
+            embed_url = f"https://www.youtube.com/embed/{vid_id.group(1)}"
+    elif "youtu.be/" in video_url:
+        vid_id = video_url.split("youtu.be/")[-1].split("?")[0]
+        embed_url = f"https://www.youtube.com/embed/{vid_id}"
+    
+    caption = ct.get("caption", "")
+    body_lines = _clean_body(section.body or "")
+    desc = body_lines[0] if body_lines else caption
+    
+    return f"""<section class="video-section">
+  <div class="container">
+    {f'<div class="video-header"><h2>{_e(title)}</h2></div>' if title else ''}
+    <div class="video-wrapper">
+      <iframe src="{_e(embed_url)}" frameborder="0" allowfullscreen loading="lazy"></iframe>
+    </div>
+    {f'<p class="video-caption">{_e(desc)}</p>' if desc else ''}
+  </div>
+</section>"""
+
+
+def _render_comparison(section, theme: Theme) -> str:
+    """Renderiza tabla comparativa (nosotros vs competencia)."""
+    title = _extract_title(section, fallback_generic="¿Por qué elegirnos?")
+    ct = section.content or {}
+    rows = ct.get("rows", [])  # [{feature: "Envío gratis", us: true, them: false}]
+    us_label = ct.get("us_label", "Nosotros")
+    them_label = ct.get("them_label", "Otros")
+    
+    rows_html = ""
+    for row in rows:
+        us_val = "✓" if row.get("us") is True else ("✗" if row.get("us") is False else _e(str(row.get("us", ""))))
+        them_val = "✓" if row.get("them") is True else ("✗" if row.get("them") is False else _e(str(row.get("them", ""))))
+        us_cls = "check" if row.get("us") is True else ("cross" if row.get("us") is False else "")
+        them_cls = "check" if row.get("them") is True else ("cross" if row.get("them") is False else "")
+        rows_html += f"""<tr>
+            <td class="comp-feature">{_e(row.get("feature", ""))}</td>
+            <td class="comp-val {us_cls}">{us_val}</td>
+            <td class="comp-val {them_cls}">{them_val}</td>
+        </tr>"""
+    
+    return f"""<section class="comparison-section">
+  <div class="container">
+    <div class="comparison-header">
+      <p class="section-label" style="justify-content:center">Comparativa</p>
+      <h2>{_e(title)}</h2>
+    </div>
+    <div class="comparison-table-wrap">
+      <table class="comparison-table">
+        <thead><tr>
+          <th></th>
+          <th class="us-col">{_e(us_label)}</th>
+          <th class="them-col">{_e(them_label)}</th>
+        </tr></thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+    </div>
+  </div>
+</section>"""
+
+
+def _render_countdown(section, theme: Theme) -> str:
+    """Renderiza un banner de countdown/urgencia."""
+    title = _extract_title(section, fallback_generic="¡Oferta por tiempo limitado!")
+    ct = section.content or {}
+    end_date = ct.get("end_date", "")
+    body_lines = _clean_body(section.body or "")
+    subtitle = body_lines[0] if body_lines else ""
+    cta = section.cta_text or "Aprovechar ahora"
+    
+    return f"""<section class="countdown-section">
+  <div class="container">
+    <div class="countdown-content">
+      <h2>{_e(title)}</h2>
+      {f'<p>{_e(subtitle)}</p>' if subtitle else ''}
+      <div class="countdown-timer" data-end="{_e(end_date)}">
+        <div class="timer-unit"><span class="timer-num" id="cd-days">00</span><span class="timer-label">Días</span></div>
+        <div class="timer-sep">:</div>
+        <div class="timer-unit"><span class="timer-num" id="cd-hours">00</span><span class="timer-label">Horas</span></div>
+        <div class="timer-sep">:</div>
+        <div class="timer-unit"><span class="timer-num" id="cd-mins">00</span><span class="timer-label">Min</span></div>
+        <div class="timer-sep">:</div>
+        <div class="timer-unit"><span class="timer-num" id="cd-secs">00</span><span class="timer-label">Seg</span></div>
+      </div>
+      <a class="btn btn-primary">{_e(cta)}</a>
+    </div>
+  </div>
+</section>"""
+
+
+def _render_trust_badges(section, theme: Theme) -> str:
+    """Renderiza insignias de confianza (envío, garantía, pago seguro)."""
+    ct = section.content or {}
+    badges = ct.get("badges", [])
+    
+    if not badges:
+        badges = [
+            {"icon": "🚚", "title": "Envío gratis", "subtitle": "En pedidos +$99"},
+            {"icon": "🛡️", "title": "Garantía", "subtitle": "30 días de devolución"},
+            {"icon": "🔒", "title": "Pago seguro", "subtitle": "Encriptación SSL"},
+            {"icon": "💬", "title": "Soporte 24/7", "subtitle": "Te ayudamos siempre"},
+        ]
+    
+    items = ""
+    for b in badges:
+        items += f"""<div class="trust-badge-item">
+          <span class="badge-icon">{b.get("icon", "✓")}</span>
+          <div class="badge-text">
+            <strong>{_e(b.get("title", ""))}</strong>
+            {f'<span>{_e(b.get("subtitle", ""))}</span>' if b.get("subtitle") else ''}
+          </div>
+        </div>"""
+    
+    return f"""<section class="trust-badges-section">
+  <div class="container">
+    <div class="trust-badges-grid">{items}</div>
+  </div>
+</section>"""
+
+
+def _render_brand_story(section, theme: Theme) -> str:
+    """Renderiza sección de historia/valores de marca."""
+    title = _extract_title(section, fallback_generic="Nuestra historia")
+    body_lines = _clean_body(section.body or "", exclude_title=title)
+    img = section.image_url or ""
+    
+    body_html = "".join(f"<p>{_e(l)}</p>" for l in body_lines)
+    
+    img_col = f"""<div class="story-image">
+        <img src="{_e(img)}" alt="{_e(title)}" loading="lazy">
+    </div>""" if img else ""
+    
+    return f"""<section class="brand-story-section">
+  <div class="container">
+    <div class="story-layout {'with-image' if img else ''}">
+      <div class="story-content">
+        <p class="section-label">Nuestra historia</p>
+        <h2>{_e(title)}</h2>
+        {body_html}
+      </div>
+      {img_col}
+    </div>
+  </div>
+</section>"""
+
+
 # ═══════════════════════════════════════════════════════════════════
 # HTML SHELL
 # ═══════════════════════════════════════════════════════════════════
 
-def html_shell(body: str, name: str, brand_name: str, theme: Theme) -> str:
+def html_shell(body: str, name: str, brand_name: str, theme: Theme, template_id: str = "modern") -> str:
     P, S, A = theme.P, theme.S, theme.A
     BG, TX = theme.BG, theme.TX
     HF, BF = theme.HF, theme.BF
     P_light = theme.P_light
 
-    # Clean the page title — remove garbage
+    # Clean the page title
     page_title = _strip_markdown(name or brand_name or "Landing Page")
     low_title = page_title.lower().strip()
     if (low_title in _TITLE_GARBAGE
             or any(k in low_title for k in _TITLE_META_KEYWORDS)
             or len(page_title) < 3):
         page_title = brand_name or "Landing Page"
+
+    # Get CSS from template system
+    from app.use_cases.landing.landing_templates import get_template_css
+    css = get_template_css(template_id, P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten)
+
+    # For elegant template, override fonts in the Google Fonts link
+    if template_id == "elegant":
+        HF = "Playfair Display"
+        BF = "Lora"
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -1335,7 +1612,7 @@ def html_shell(body: str, name: str, brand_name: str, theme: Theme) -> str:
 :wght@300;400;500;600;700;800;900&family={BF.replace(' ','+')}\
 :ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-{_get_css(P, S, A, BG, TX, HF, BF, P_light)}
+{css}
 </style>
 </head>
 <body>
@@ -1343,121 +1620,3 @@ def html_shell(body: str, name: str, brand_name: str, theme: Theme) -> str:
 <div class="footer">&copy; 2026 {_e(brand_name)} &middot; Powered by NEXOM</div>
 </body>
 </html>"""
-
-
-def _get_css(P, S, A, BG, TX, HF, BF, P_light):
-    p_shadow = _rgba(P, 0.3)
-    p_low = _rgba(P, 0.06)
-    p_hover = _rgba(P, 0.08)
-    return f"""\
-*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-:root{{
-  --p:{P};--p-light:{P_light};--s:{S};--a:{A};
-  --bg:{BG};--tx:{TX};--tx-secondary:#64748B;--tx-muted:#94A3B8;
-  --bd:#E2E8F0;--bg-alt:#FAFAF9;--bg-warm:#F5F3FF;
-  --success:#10B981;--amber:#F59E0B;
-  --hf:'{HF}',system-ui,sans-serif;--bf:'{BF}',system-ui,sans-serif;
-  --mw:1120px;--r:16px;--r-lg:24px
-}}
-html{{scroll-behavior:smooth}}
-body{{font-family:var(--bf);color:var(--tx);background:var(--bg);line-height:1.75;-webkit-font-smoothing:antialiased}}
-h1,h2,h3,h4{{font-family:var(--hf);line-height:1.15;font-weight:700;letter-spacing:-.025em}}
-.container{{max-width:var(--mw);margin:0 auto;padding:0 28px}}
-.section-label{{display:inline-flex;align-items:center;gap:8px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--p);margin-bottom:16px}}
-.section-label::before{{content:'';width:24px;height:2px;background:var(--a);border-radius:2px}}
-.btn{{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:18px 48px;font-family:var(--hf);font-weight:700;font-size:1rem;border-radius:60px;border:none;cursor:pointer;letter-spacing:.01em;transition:all .35s cubic-bezier(.4,0,.2,1);text-decoration:none;overflow:hidden}}
-.btn-primary{{background:linear-gradient(135deg,var(--p),var(--p-light));color:#fff;box-shadow:0 8px 32px {p_shadow},0 2px 8px {p_low}}}
-.btn-primary:hover{{transform:translateY(-2px);box-shadow:0 12px 40px {p_shadow}}}
-.btn-white{{background:#fff;color:var(--p);box-shadow:0 4px 24px rgba(0,0,0,.12)}}
-.btn-white:hover{{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.18)}}
-.hero{{position:relative;padding:140px 0 120px;text-align:center;background:linear-gradient(160deg,#0F0A2E 0%,{S} 25%,{P} 60%,{P_light} 100%);color:#fff;overflow:hidden}}
-.hero::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 600px 400px at 25% 30%,rgba(167,139,250,.2) 0%,transparent 70%),radial-gradient(ellipse 500px 500px at 75% 70%,rgba(139,92,246,.15) 0%,transparent 70%)}}
-.hero::after{{content:'';position:absolute;bottom:-2px;left:0;right:0;height:80px;background:linear-gradient(to top,var(--bg),transparent)}}
-.hero .container{{position:relative;z-index:2}}
-.hero h1{{font-size:clamp(2.4rem,6vw,4rem);font-weight:900;line-height:1.06;margin-bottom:24px;letter-spacing:-.035em;text-shadow:0 4px 40px rgba(0,0,0,.2)}}
-.hero .subtitle{{font-size:clamp(1rem,2vw,1.2rem);opacity:.88;max-width:560px;margin:0 auto 44px;line-height:1.75}}
-.hero .trust-line{{margin-top:44px;font-size:.88rem;opacity:.55}}
-.social-proof{{padding:40px 0;border-bottom:1px solid var(--bd)}}
-.proof-grid{{display:flex;justify-content:center;align-items:center;gap:64px;flex-wrap:wrap}}
-.proof-item{{text-align:center}}
-.proof-value{{font-family:var(--hf);font-size:1.8rem;font-weight:800;color:var(--p);line-height:1.2}}
-.proof-label{{font-size:.82rem;color:var(--tx-secondary);margin-top:4px}}
-.proof-stars{{color:var(--amber);font-size:1.2rem;letter-spacing:2px;margin-bottom:4px}}
-.section-text{{padding:100px 0}}
-.solution-section{{background:var(--bg-warm);padding:100px 0}}
-.text-block{{max-width:680px;margin:0 auto}}
-.text-block h2{{font-size:clamp(1.75rem,4vw,2.5rem);margin-bottom:28px}}
-.text-block p{{font-size:1.05rem;color:var(--tx-secondary);margin-bottom:20px;line-height:1.85}}
-.text-block .highlight-text{{color:var(--tx);font-weight:600;font-size:1.1rem;border-left:3px solid var(--a);padding-left:20px;margin:32px 0}}
-.benefits-section{{padding:100px 0}}
-.benefits-header,.testimonials-header,.faq-header{{text-align:center;margin-bottom:56px}}
-.benefits-header h2,.testimonials-header h2,.faq-header h2{{font-size:clamp(1.75rem,4vw,2.5rem)}}
-.benefits-grid{{display:grid;grid-template-columns:repeat(2,1fr);gap:28px}}
-.benefit-card{{padding:36px 32px;border-radius:var(--r-lg);border:1px solid var(--bd);background:var(--bg);transition:all .4s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}}
-.benefit-card::before{{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--p),var(--a));opacity:0;transition:opacity .3s}}
-.benefit-card:hover{{border-color:{A};box-shadow:0 12px 48px {p_hover};transform:translateY(-4px)}}
-.benefit-card:hover::before{{opacity:1}}
-.benefit-icon{{width:56px;height:56px;border-radius:16px;background:var(--bg-warm);display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px}}
-.benefit-card h3{{font-size:1.15rem;margin-bottom:10px;font-weight:700}}
-.benefit-card p{{color:var(--tx-secondary);font-size:.93rem;line-height:1.75}}
-.transformation{{padding:100px 0;background:var(--bg-alt)}}
-.transform-grid{{display:grid;grid-template-columns:1fr 1fr;gap:32px;max-width:800px;margin:40px auto 48px}}
-.transform-card{{padding:40px 32px;border-radius:var(--r-lg);text-align:center}}
-.transform-card.before{{background:linear-gradient(135deg,#FEE2E2,#FECACA);border:1px solid #FCA5A5}}
-.transform-card.after{{background:linear-gradient(135deg,#DCFCE7,#BBF7D0);border:1px solid #86EFAC}}
-.transform-card .emoji-big{{font-size:3rem;margin-bottom:16px}}
-.transform-card h4{{font-size:1rem;font-weight:700;margin-bottom:12px}}
-.transform-card p{{font-size:.9rem;color:var(--tx-secondary);line-height:1.7}}
-.transform-text{{max-width:640px;margin:0 auto;text-align:center;font-size:1.1rem;color:var(--tx-secondary);line-height:1.85}}
-.offer-section{{padding:100px 0}}
-.offer-card{{max-width:580px;margin:0 auto;padding:56px 48px;border-radius:var(--r-lg);border:2px solid var(--p);background:var(--bg);text-align:center;position:relative;overflow:hidden}}
-.offer-card::before{{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--p),var(--a),var(--p));background-size:200% 100%;animation:shimmer 3s ease infinite}}
-@keyframes shimmer{{0%{{background-position:200% 0}}100%{{background-position:-200% 0}}}}
-.price-old{{text-decoration:line-through;color:var(--tx-muted);font-size:1.15rem}}
-.price-new{{font-family:var(--hf);font-size:3.2rem;font-weight:900;color:var(--p);margin:8px 0 4px;letter-spacing:-.04em}}
-.price-installments{{font-size:.88rem;color:var(--tx-secondary);margin-bottom:32px}}
-.offer-checklist{{text-align:left;margin:28px 0;list-style:none;font-size:.95rem;line-height:2.4}}
-.offer-checklist li{{padding-left:32px;position:relative}}
-.offer-checklist li::before{{content:'✓';position:absolute;left:0;color:var(--success);font-weight:800;font-size:1.1rem}}
-.bonus-box{{margin:28px 0;padding:20px 24px;border-radius:var(--r);background:linear-gradient(135deg,#FEF3C7,rgba(253,230,138,.25));border:1px solid #FCD34D;text-align:left}}
-.bonus-box .bonus-title{{font-family:var(--hf);font-weight:700;font-size:.9rem;color:#92400E;margin-bottom:8px}}
-.bonus-box ul{{list-style:none;font-size:.9rem;color:#78350F;line-height:2}}
-.bonus-box ul li::before{{content:'🎁 '}}
-.guarantee-box{{margin-top:28px;padding:18px 24px;border-radius:var(--r);background:var(--bg-warm);font-size:.88rem;color:var(--tx-secondary);display:flex;align-items:center;gap:10px}}
-.guarantee-box .shield{{font-size:1.4rem}}
-.testimonials-section{{padding:100px 0;background:var(--bg-alt)}}
-.testimonials-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}}
-.testimonial-card{{padding:36px 32px;border-radius:var(--r-lg);background:var(--bg);border:1px solid var(--bd);transition:all .35s;display:flex;flex-direction:column}}
-.testimonial-card:hover{{box-shadow:0 12px 48px rgba(0,0,0,.06);transform:translateY(-3px)}}
-.testimonial-stars{{color:var(--amber);margin-bottom:18px;letter-spacing:3px;font-size:1.1rem}}
-.testimonial-quote{{font-size:.95rem;line-height:1.85;color:#374151;margin-bottom:24px;font-style:italic;flex:1}}
-.testimonial-author{{display:flex;align-items:center;gap:12px}}
-.author-avatar{{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,{A},{P});display:flex;align-items:center;justify-content:center;font-family:var(--hf);font-weight:700;font-size:.85rem;color:#fff}}
-.author-info .name{{font-weight:700;font-size:.9rem}}
-.author-info .role{{font-size:.78rem;color:var(--tx-muted)}}
-.faq-section{{padding:100px 0}}
-.faq-list{{max-width:720px;margin:0 auto}}
-.faq-item{{border-bottom:1px solid var(--bd);padding:28px 0}}
-.faq-item:last-child{{border-bottom:none}}
-.faq-item h3{{font-size:1.05rem;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:12px}}
-.faq-item h3::before{{content:'';width:8px;height:8px;border-radius:50%;background:var(--a);flex-shrink:0}}
-.faq-item p{{color:var(--tx-secondary);font-size:.95rem;line-height:1.8;padding-left:20px}}
-.cta-final{{text-align:center;padding:88px 48px;background:linear-gradient(160deg,#0F0A2E 0%,{S} 30%,{P} 70%,{P_light} 100%);color:#fff;border-radius:var(--r-lg);margin:56px 28px;position:relative;overflow:hidden}}
-.cta-final::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 400px 300px at 80% 20%,rgba(167,139,250,.2) 0%,transparent 70%)}}
-.cta-final .container{{position:relative;z-index:1}}
-.cta-final .urgency-badge{{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:60px;font-size:.82rem;font-weight:600;margin-bottom:28px}}
-.cta-final h2{{font-size:clamp(1.7rem,4.5vw,2.6rem);margin-bottom:20px;font-weight:900;letter-spacing:-.03em}}
-.cta-final p{{opacity:.85;margin-bottom:40px;font-size:1.05rem;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.8}}
-.footer{{text-align:center;padding:44px 28px;font-size:.78rem;color:var(--tx-muted);border-top:1px solid var(--bd)}}
-@keyframes fadeUp{{from{{opacity:0;transform:translateY(24px)}}to{{opacity:1;transform:translateY(0)}}}}
-.hero h1,.hero .subtitle,.hero .btn,.hero .trust-line{{animation:fadeUp .8s cubic-bezier(.16,1,.3,1) backwards}}
-.hero .subtitle{{animation-delay:.1s}}.hero .btn{{animation-delay:.2s}}.hero .trust-line{{animation-delay:.3s}}
-@media(max-width:768px){{
-  .hero{{padding:100px 0 80px}}
-  .benefits-grid,.testimonials-grid{{grid-template-columns:1fr}}
-  .transform-grid{{grid-template-columns:1fr}}
-  .proof-grid{{gap:36px}}
-  .offer-card{{padding:36px 28px}}
-  .cta-final{{margin:32px 16px;padding:56px 24px}}
-  .section-text,.solution-section,.benefits-section,.transformation,.offer-section,.testimonials-section,.faq-section{{padding:72px 0}}
-}}"""

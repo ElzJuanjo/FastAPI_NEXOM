@@ -155,6 +155,13 @@ class LandingSectionType(str, enum.Enum):
     CTA = "cta"
     GALLERY = "gallery"
     CUSTOM = "custom"
+    PRODUCT_GALLERY = "product_gallery"
+    SPECS = "specs"
+    VIDEO_EMBED = "video_embed"
+    COMPARISON = "comparison"
+    COUNTDOWN = "countdown"
+    TRUST_BADGES = "trust_badges"
+    BRAND_STORY = "brand_story"
 
 
 class RecommendationStatus(str, enum.Enum):

@@ -1,8 +1,8 @@
-"""make migrate
+"""templates landing
 
-Revision ID: ff91a6a56740
+Revision ID: 2368fa3000ed
 Revises: 
-Create Date: 2026-04-07 19:09:41.616228
+Create Date: 2026-04-12 17:13:55.371921
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'ff91a6a56740'
+revision: str = '2368fa3000ed'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -228,6 +228,7 @@ def upgrade() -> None:
     sa.Column('status', sa.Enum('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', name='assetstatus'), nullable=False),
     sa.Column('published_url', sa.String(length=512), nullable=True),
     sa.Column('published_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('template', sa.String(length=50), nullable=True, comment='CSS template: modern | minimal | bold | ecommerce | dark | elegant'),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -331,7 +332,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_creative_batches_deleted_at'), 'creative_batches', ['deleted_at'], unique=False)
     op.create_table('landing_page_sections',
     sa.Column('landing_page_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('section_type', sa.Enum('HERO', 'SOCIAL_PROOF', 'PROBLEM', 'SOLUTION', 'FEATURES', 'BENEFITS', 'TRANSFORMATION', 'OFFER', 'TESTIMONIALS', 'PRICING', 'FAQ', 'CTA', 'GALLERY', 'CUSTOM', name='landingsectiontype'), nullable=False),
+    sa.Column('section_type', sa.Enum('HERO', 'SOCIAL_PROOF', 'PROBLEM', 'SOLUTION', 'FEATURES', 'BENEFITS', 'TRANSFORMATION', 'OFFER', 'TESTIMONIALS', 'PRICING', 'FAQ', 'CTA', 'GALLERY', 'CUSTOM', 'PRODUCT_GALLERY', 'SPECS', 'VIDEO_EMBED', 'COMPARISON', 'COUNTDOWN', 'TRUST_BADGES', 'BRAND_STORY', name='landingsectiontype'), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=True),
     sa.Column('body', sa.Text(), nullable=True),
     sa.Column('cta_text', sa.String(length=255), nullable=True),
@@ -339,6 +340,8 @@ def upgrade() -> None:
     sa.Column('order', sa.Integer(), nullable=False),
     sa.Column('is_visible', sa.Boolean(), nullable=False),
     sa.Column('content', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('image_url', sa.String(length=512), nullable=True, comment='Primary image URL for this section'),
+    sa.Column('images', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Array of image URLs for gallery-type sections'),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

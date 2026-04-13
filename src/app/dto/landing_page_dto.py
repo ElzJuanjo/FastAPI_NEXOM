@@ -12,6 +12,8 @@ class CreateLandingSectionRequest(BaseModel):
     order: int = Field(ge=1)
     is_visible: bool = True
     content: Optional[dict] = None
+    image_url: Optional[str] = None
+    images: Optional[list[str]] = None
 
 
 class UpdateLandingSectionRequest(BaseModel):
@@ -21,6 +23,8 @@ class UpdateLandingSectionRequest(BaseModel):
     cta_url: Optional[str] = None
     is_visible: Optional[bool] = None
     content: Optional[dict] = None
+    image_url: Optional[str] = None
+    images: Optional[list[str]] = None
 
 
 class LandingSectionResponse(BaseModel):
@@ -34,6 +38,8 @@ class LandingSectionResponse(BaseModel):
     order: int
     is_visible: bool
     content: Optional[dict] = None
+    image_url: Optional[str] = None
+    images: Optional[list] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -43,6 +49,7 @@ class CreateLandingPageRequest(BaseModel):
     brand_id: Optional[str] = None
     name: str = Field(min_length=2, max_length=255)
     campaign: Optional[str] = None
+    template: Optional[str] = Field(default="modern", description="CSS template: modern | minimal | bold | ecommerce | dark | elegant")
     sections: Optional[list[CreateLandingSectionRequest]] = None
 
 
@@ -52,6 +59,7 @@ class UpdateLandingPageRequest(BaseModel):
     status: Optional[str] = None
     brand_id: Optional[str] = None
     published_url: Optional[str] = None
+    template: Optional[str] = None
 
 
 class LandingPageResponse(BaseModel):
@@ -63,6 +71,7 @@ class LandingPageResponse(BaseModel):
     status: str
     published_url: Optional[str] = None
     published_at: Optional[datetime] = None
+    template: Optional[str] = "modern"
     sections: list[LandingSectionResponse] = []
     created_at: datetime
 

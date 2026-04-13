@@ -32,6 +32,15 @@ Generate the complete structure with READY-TO-IMPLEMENT COPY. Follow this 10-sec
 8. **TESTIMONIALS**: 3 model testimonials (name, city, age, text, rating, specific result), UGC-style format
 9. **FAQ**: 5-7 questions focused on resolving purchase objections
 10. **FINAL CTA**: Urgency + guarantee, benefit reminder, irresistible action button
+
+OPTIONAL ADDITIONAL SECTIONS (use when appropriate for the product/niche):
+- **PRODUCT_GALLERY**: Product image gallery with thumbnails, variants selector, short description. Use when the user has product images or for e-commerce product pages.
+- **SPECS**: Technical specifications table with label:value pairs. Use for electronics, gadgets, or products with technical details.
+- **VIDEO_EMBED**: Embedded product video (YouTube/Vimeo URL). Use when video content is available or recommended.
+- **COMPARISON**: Us vs Competition comparison table (feature + checkmarks). Use when differentiation from competitors is key.
+- **COUNTDOWN**: Urgency countdown timer for limited offers. Use for flash sales, launches, or time-sensitive promotions.
+- **TRUST_BADGES**: Trust icons bar (free shipping, guarantee, secure payment, support). Use for e-commerce pages to reduce purchase anxiety.
+- **BRAND_STORY**: Brand narrative section with optional image. Use when brand storytelling adds value to the conversion.
  
 INPUT NEEDED: Product + main benefit, defined buyer persona, price and offer, available testimonials, guarantee offered.
  
@@ -151,13 +160,36 @@ The block MUST follow this exact format — a JSON object with landing_name and 
  
 RULES FOR THE JSON BLOCK:
 - Include it ONLY when delivering a COMPLETE landing page (not for partial updates, single section edits, or follow-ups).
-- "section_type" MUST be one of: hero, social_proof, problem, solution, benefits, transformation, offer, testimonials, faq, cta.
+- "section_type" MUST be one of: hero, social_proof, problem, solution, benefits, transformation, offer, testimonials, faq, cta, product_gallery, specs, video_embed, comparison, countdown, trust_badges, brand_story.
 - "body" should contain the FULL copy text for that section as delivered in the markdown above. Use \\n for line breaks within the string.
 - "content" contains structured sub-data specific to each section type (stats, items, testimonials, FAQ items, offer details).
 - Every section MUST have at least "section_type", "title", and "body".
 - "cta_text" should be included for hero, offer, and cta sections.
 - The JSON must be valid — no trailing commas, no comments inside it.
-- The block is invisible to the user (HTML comment), so it doesn't affect the reading experience."""
+- The block is invisible to the user (HTML comment), so it doesn't affect the reading experience.
+
+ADDITIONAL SECTION JSON FORMATS (use when including optional sections):
+
+For product_gallery sections:
+{"section_type": "product_gallery", "title": "Product name", "body": "Description", "cta_text": "Add to cart", "content": {"product_name": "Product Name", "price": "$XX", "price_old": "$XX", "short_description": "Brief description", "variants": [{"label": "Color", "options": ["Black", "Brown"]}]}}
+
+For specs sections:
+{"section_type": "specs", "title": "Specifications", "body": "Details", "content": {"specs": [{"label": "Material", "value": "100% Leather"}, {"label": "Weight", "value": "250g"}]}}
+
+For comparison sections:
+{"section_type": "comparison", "title": "Why choose us?", "body": "Comparison", "content": {"us_label": "Us", "them_label": "Others", "rows": [{"feature": "Free shipping", "us": true, "them": false}, {"feature": "30-day guarantee", "us": true, "them": false}]}}
+
+For trust_badges sections:
+{"section_type": "trust_badges", "title": "Trust", "body": "", "content": {"badges": [{"icon": "🚚", "title": "Free shipping", "subtitle": "Orders over $99"}, {"icon": "🛡️", "title": "Guarantee", "subtitle": "30-day returns"}, {"icon": "🔒", "title": "Secure payment", "subtitle": "SSL encryption"}]}}
+
+For video_embed sections:
+{"section_type": "video_embed", "title": "See it in action", "body": "Watch how it works", "content": {"video_url": "https://youtube.com/watch?v=...", "caption": "Product demo"}}
+
+For countdown sections:
+{"section_type": "countdown", "title": "Limited time offer!", "body": "Don't miss out", "cta_text": "Buy now", "content": {"end_date": "2026-12-31T23:59:59"}}
+
+For brand_story sections:
+{"section_type": "brand_story", "title": "Our story", "body": "Full brand narrative text"}"""
 
 
    def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:

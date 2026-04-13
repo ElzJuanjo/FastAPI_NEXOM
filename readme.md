@@ -21,9 +21,9 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/dto/auth_dto.py`                          | DTOs para autenticación: request bodies y response bodies. |
 | `domain/repositories/user_repository.py`       | Contrato de acceso a datos para User y UserAuthProvider.    |
 | `infra/adapters/user_sqlalchemy.py`            | Implementación SQLAlchemy async del UserRepository.        |
-| `app/use_cases/auth_register.py`               | Registro de usuario por email.                              |
-| `app/use_cases/auth_login.py`                  | Login por email + password.                                 |
-| `app/use_cases/auth_refresh.py`                | Renovar access token usando refresh token.                  |
+| `app/use_cases/auth/register.py`               | Registro de usuario por email.                              |
+| `app/use_cases/auth/login.py`                  | Login por email + password.                                 |
+| `app/use_cases/auth/refresh.py`                | Renovar access token usando refresh token.                  |
 | `interfaces/dependencies/auth_dependencies.py` | Dependencias de inyección para auth.                       |
 | `interfaces/api/auth_router.py`                | Endpoints de autenticación: register, login, refresh, me.  |
 
@@ -38,9 +38,9 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `infra/adapters/plan_sqlalchemy.py`              | Implementación SQLAlchemy async del PlanRepository.               |
 | `infra/adapters/organization_sqlalchemy.py`      | Implementación SQLAlchemy async del OrganizationRepository.       |
 | `app/dto/organization_dto.py`                    | DTOs para Organizations, Plans y Members.                          |
-| `app/use_cases/org_create.py`                    | Crear organización.                                               |
-| `app/use_cases/org_list.py`                      | Listar organizaciones a las que pertenece un usuario.              |
-| `app/use_cases/plan_seed.py`                     | Seed de planes iniciales.                                          |
+| `app/use_cases/org/create.py`                    | Crear organización.                                               |
+| `app/use_cases/org/list.py`                      | Listar organizaciones a las que pertenece un usuario.              |
+| `app/use_cases/org/plan_seed.py`                 | Seed de planes iniciales.                                          |
 | `interfaces/dependencies/org_dependencies.py`    | Dependencias de inyección para Organizations y Plans.             |
 | `interfaces/api/org_router.py`                   | Endpoints de Organizations y Plans.                                |
 
@@ -56,8 +56,8 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `infra/adapters/product_sqlalchemy.py`            | Implementación SQLAlchemy async del ProductRepository.     |
 | `app/dto/brand_dto.py`                            | DTOs para Brand.                                            |
 | `app/dto/product_dto.py`                          | DTOs para Product.                                          |
-| `app/use_cases/brand_crud.py`                     | Casos de uso CRUD para Brand.                               |
-| `app/use_cases/product_crud.py`                   | Casos de uso CRUD para Product.                             |
+| `app/use_cases/brand/crud.py`                     | Casos de uso CRUD para Brand.                               |
+| `app/use_cases/product/crud.py`                   | Casos de uso CRUD para Product.                             |
 | `interfaces/dependencies/brand_dependencies.py`   | Dependencias de inyección para Brand.                      |
 | `interfaces/dependencies/product_dependencies.py` | Dependencias de inyección para Product.                    |
 | `interfaces/api/brand_router.py`                  | Endpoints CRUD de Brand, scoped por organización.          |
@@ -71,7 +71,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `domain/repositories/agent_task_repository.py`  | Contrato de acceso a datos para AgentTask.                |
 | `infra/adapters/agent_task_sqlalchemy.py`       | Implementación SQLAlchemy async del AgentTaskRepository. |
 | `app/dto/agent_dto.py`                          | DTOs para AgentConfig y AgentTask.                        |
-| `app/use_cases/agent_task_crud.py`              | Casos de uso para AgentTask.                              |
+| `app/use_cases/execution/agent_task_crud.py`    | Casos de uso para AgentTask.                              |
 | `interfaces/dependencies/agent_dependencies.py` | Dependencias de inyección para AgentConfig y AgentTask.  |
 | `interfaces/api/agent_router.py`                | Endpoints de AgentConfig y AgentTask.                     |
 
@@ -83,7 +83,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `domain/repositories/flow_repository.py`       | Contrato de acceso a datos para Flow y FlowStep.         |
 | `infra/adapters/flow_sqlalchemy.py`            | Implementación SQLAlchemy async del FlowRepository.     |
 | `app/dto/flow_dto.py`                          | DTOs para Flow y FlowStep.                               |
-| `app/use_cases/flow_crud.py`                   | Casos de uso para Flow y FlowStep.                       |
+| `app/use_cases/flow/crud.py`                   | Casos de uso para Flow y FlowStep.                       |
 | `interfaces/dependencies/flow_dependencies.py` | Dependencias de inyección para Flow.                    |
 | `interfaces/api/flow_router.py`                | Endpoints de Flow y FlowStep.                            |
 
@@ -96,7 +96,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/agents/base_agent.py`                              | Define el contrato que cada agente debe implementar.   |
 | `app/agents/product_search_agent.py`                    | Agente de Búsqueda de Productos.                      |
 | `app/agents/agent_registry.py`                          | Mapea AgentType a su clase de agente correspondiente.  |
-| `app/use_cases/agent_execute.py`                        | Ejecutar un agente.                                    |
+| `app/use_cases/execution/agent_execute.py`              | Ejecutar un agente.                                    |
 | `app/dto/agent_execute_dto.py`                          | DTOs para la ejecución de agentes.                    |
 | `interfaces/dependencies/agent_execute_dependencies.py` | Dependencias de inyección para ejecución de agentes. |
 | `interfaces/api/agent_execute_router.py`                | Endpoint para ejecutar agentes.                        |
@@ -141,7 +141,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/orchestration/flow_state.py`                      | Estado para la ejecución de un Flow multi-agente.                    |
 | `app/orchestration/flow_planner.py`                    | Analiza dependencias entre steps y genera lotes de ejecución.        |
 | `app/orchestration/flow_executor.py`                   | Corre los steps de un Flow en orden.                                  |
-| `app/use_cases/flow_execute.py`                        | Ejecutar un Flow completo.                                            |
+| `app/use_cases/flow/execute.py`                        | Ejecutar un Flow completo.                                            |
 | `app/dto/flow_execute_dto.py`                          | DTOs para ejecución de Flows.                                        |
 | `interfaces/dependencies/flow_execute_dependencies.py` | Dependencias para ejecución de Flows.                                |
 | `interfaces/api/flow_execute_router.py`                | Endpoint para ejecutar Flows automáticamente.                        |
@@ -157,7 +157,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/agents/store_dev_agent.py`          | Asesora y genera configuración de tienda online.               |
 | `app/agents/image_gen_agent.py`          | Genera imágenes reales de producto usando Gemini.              |
 | `app/agents/conversion_opt_agent.py`     | Analiza métricas y recomienda mejoras.                         |
-| `app/use_cases/flow_template.py`         | Templates de Flows predefinidos.                                |
+| `app/use_cases/flow/template.py`         | Templates de Flows predefinidos.                                |
 | `app/dto/flow_template_dto.py`           | DTOs para Flow Templates.                                       |
 | `interfaces/api/flow_template_router.py` | Endpoints para Flow Templates predefinidos.                     |
 | `app/agents/scoring.py`                  | Motor de scoring para productos ganadores.                      |
@@ -168,7 +168,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | Archivo                                | Propósito                       |
 | -------------------------------------- | -------------------------------- |
 | `infra/tools/google_oauth_client.py` | Cliente para Google OAuth 2.0.   |
-| `app/use_cases/auth_google.py`       | Autenticación con Google OAuth. |
+| `app/use_cases/auth/google.py`       | Autenticación con Google OAuth. |
 
 ### Sprint 14 - Hardening
 
@@ -181,17 +181,17 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `infra/middleware/request_context.py`       | Middleware que asigna un request_id único a cada request                |
 | `interfaces/dependencies/org_membership.py` | Valida que el usuario autenticado pertenece a la organización.          |
 | `app/agents/credit_costs.py`                | Tabla de costos en créditos por tipo de agente.                         |
-| `app/use_cases/creative_batch.py`           | Generación masiva de creativos publicitarios.                           |
+| `app/use_cases/creative/batch.py`           | Generación masiva de creativos publicitarios.                           |
 | `interfaces/api/creative_batch_router.py`   | Endpoints para generación masiva de creativos publicitarios.            |
 | `infra/tools/email_client.py`               | Cliente SMTP asíncrono para envío de emails transaccionales.           |
-| `app/use_cases/org_update.py`               | Actualizar organización y cambiar plan.                                 |
+| `app/use_cases/org/update.py`               | Actualizar organización y cambiar plan.                                 |
 
 ### Sprint 15 - Persistencia de imágenes
 
 | Archivo                                   | Propósito                                                             |
 | ----------------------------------------- | ---------------------------------------------------------------------- |
 | `infra/tools/s3_client.py`              | Cliente async para subir archivos a S3.                                |
-| `app/use_cases/creative_persist.py`     | Utilidad para persistir imágenes generadas como Creatives en BD + S3. |
+| `app/use_cases/creative/persist.py`     | Utilidad para persistir imágenes generadas como Creatives en BD + S3. |
 | `domain/entities/creative_batch.py`     | Agrupa creativos generados en una sola ejecución.                     |
 | `infra/tools/image_reference_finder.py` | Busca fotos reales de productos en la web.                             |
 
@@ -211,20 +211,21 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 ### Sprint 18, 19 - Flujos v2 + Landing Builder
 
-| Archivo                                     | Propósito                                                                          |
-| ------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `app/use_cases/landing_auto_persist.py`   | Se invoca cuando el agente landing_page genera contenido con estructura de landing. |
-| `app/use_cases/landing_html_render.py`    | Landing Page → HTML renderer.                                                      |
-| `app/use_cases/landing_section_parser.py` | Convierte el texto markdown generado por el agente en secciones estructuradas.      |
-| `app/use_cases/landing_export.py`         | Landing Page → Shopify Liquid & WordPress exporters.                               |
+| Archivo                                        | Propósito                                                                          |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `app/use_cases/landing/auto_persist.py`      | Se invoca cuando el agente landing_page genera contenido con estructura de landing. |
+| `app/use_cases/landing/html_render.py`       | Landing Page → HTML renderer.                                                      |
+| `app/use_cases/landing/section_parser.py`    | Convierte el texto markdown generado por el agente en secciones estructuradas.      |
+| `app/use_cases/landing/export.py`            | Landing Page → Shopify Liquid & WordPress exporters.                               |
+| `app/use_cases/landing/landing_templates.py` | Landing Page CSS Templates.                                                         |
 
 ### Sprint 20 - Branding Builder
 
 | Archivo                                 | Propósito                                                               |
 | --------------------------------------- | ------------------------------------------------------------------------ |
-| `app/use_cases/brand_templates.py`    | Templates de brand identity predefinidos por nicho/industria.            |
-| `app/use_cases/brand_export_pdf.py`   | Genera un documento visual con identidad de marca completa.              |
-| `app/use_cases/brand_auto_persist.py` | Auto-persistencia de Brand Identity desde output del agente de branding. |
+| `app/use_cases/brand/templates.py`    | Templates de brand identity predefinidos por nicho/industria.            |
+| `app/use_cases/brand/export_pdf.py`   | Genera un documento visual con identidad de marca completa.              |
+| `app/use_cases/brand/auto_persist.py` | Auto-persistencia de Brand Identity desde output del agente de branding. |
 
 ### Sprint 21 - Copywriting & Ads Assets Manager + Product Persist
 
@@ -232,9 +233,9 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | ----------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `interfaces/dependencies/copy_asset_dependencie.py` | Dependencias de inyección para CopyAsset.                                     |
 | `interfaces/api/copy_asset_router.py`               | Endpoints CRUD de CopyAsset, scoped por organización del usuario.             |
-| `app/use_cases/copy_auto_persist.py`                | Auto-persistencia de Copy Assets desde output de agentes copywriting y ads.    |
-| `app/use_cases/copy_asset_crud.py`                  | Casos de uso CRUD para CopyAsset.                                              |
+| `app/use_cases/copy_asset/auto_persist.py`          | Auto-persistencia de Copy Assets desde output de agentes copywriting y ads.    |
+| `app/use_cases/copy_asset/crud.py`                  | Casos de uso CRUD para CopyAsset.                                              |
 | `app/dto/copy_asset_dto.py`                         | DTOs para CopyAsset.                                                           |
-| `app/use_cases/content_sanitizer.py`                | Sanitiza el content del agente antes de entregarlo al usuario final.           |
-| `app/use_cases/product_auto_persist.py`             | Auto-persistencia de Productos Winners desde output del agente product_search. |
+| `app/use_cases/conversation/content_sanitizer.py`   | Sanitiza el content del agente antes de entregarlo al usuario final.           |
+| `app/use_cases/product/auto_persist.py`             | Auto-persistencia de Productos Winners desde output del agente product_search. |
 | `interfaces/api/upload_router.py`                   | Endpoint para subir imágenes al chat (pre-upload antes de enviar mensaje).    |

@@ -211,13 +211,13 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 
 ### Sprint 18, 19 - Flujos v2 + Landing Builder
 
-| Archivo                                        | Propósito                                                                          |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `app/use_cases/landing/auto_persist.py`      | Se invoca cuando el agente landing_page genera contenido con estructura de landing. |
-| `app/use_cases/landing/html_render.py`       | Landing Page → HTML renderer.                                                      |
-| `app/use_cases/landing/section_parser.py`    | Convierte el texto markdown generado por el agente en secciones estructuradas.      |
-| `app/use_cases/landing/export.py`            | Landing Page → Shopify Liquid & WordPress exporters.                               |
-| `app/use_cases/landing/landing_templates.py` | Landing Page CSS Templates.                                                         |
+| Archivo                                     | Propósito                                                                          |
+| ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `app/use_cases/landing/auto_persist.py`   | Se invoca cuando el agente landing_page genera contenido con estructura de landing. |
+| `app/use_cases/landing/html_render.py`    | Landing Page → HTML renderer.                                                      |
+| `app/use_cases/landing/section_parser.py` | Convierte el texto markdown generado por el agente en secciones estructuradas.      |
+| `app/use_cases/landing/export.py`         | Landing Page → Shopify Liquid & WordPress exporters.                               |
+| `app/use_cases/landing/templates.py`      | Landing Page CSS Templates.                                                         |
 
 ### Sprint 20 - Branding Builder
 

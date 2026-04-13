@@ -1593,7 +1593,7 @@ def html_shell(body: str, name: str, brand_name: str, theme: Theme, template_id:
         page_title = brand_name or "Landing Page"
 
     # Get CSS from template system
-    from app.use_cases.landing.landing_templates import get_template_css
+    from app.use_cases.landing.templates import get_template_css
     css = get_template_css(template_id, P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten)
 
     # For elegant template, override fonts in the Google Fonts link

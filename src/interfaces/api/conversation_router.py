@@ -241,6 +241,29 @@ async def send_message_stream(
             total_credits = get_credit_cost(agent_type or "general_assistant")
             organization.credits_used_this_month += total_credits
 
+            # ── Pre-extract product selection data BEFORE building meta_data ──
+            # Esto debe correr antes de crear assistant_message para que
+            # los datos queden persistidos en meta_data y sobrevivan al reload
+            # de la conversación (no solo en el SSE done_payload efímero).
+            auto_persisted_product_ids: list[str] = []
+            selectable_products: list[dict] = []
+            if agent_type == "product_search" and response_content_raw and not result.get("error"):
+                try:
+                    from app.use_cases.product.auto_persist import (
+                        auto_persist_winner_products,
+                        extract_selectable_products,
+                    )
+                    auto_persisted_product_ids = await auto_persist_winner_products(
+                        session=session,
+                        content=response_content_raw,
+                        org_id=org_id,
+                        conversation_id=conversation.id,
+                        raw_scraped_data=result.get("raw_scraped_data"),
+                    )
+                    selectable_products = extract_selectable_products(response_content_raw) or []
+                except Exception as e:
+                    logger.error(f"Error auto-persisting winner products: {e}")
+
             assistant_message = ConversationMessage(
                 conversation_id=conversation.id,
                 role="assistant",
@@ -254,6 +277,10 @@ async def send_message_stream(
                     "router_reasoning": result.get("router_reasoning"),
                     "prompt_suggestions": result.get("prompt_suggestions"),
                     "generation_params": result.get("generation_params"),
+                    # Persistir product selection data en meta_data para que
+                    # el ProductSelectionCard sobreviva al reload de la conversación.
+                    "persisted_product_ids": auto_persisted_product_ids or None,
+                    "selectable_products": selectable_products or None,
                 },
             )
             session.add(assistant_message)
@@ -328,19 +355,9 @@ async def send_message_stream(
                 except Exception as e:
                     logger.error(f"Error auto-persisting copy assets: {e}")
 
-            # Auto-persist winner products if agent is product_search
-            if agent_type == "product_search" and response_content_raw and not result.get("error"):
-                try:
-                    from app.use_cases.product.auto_persist import auto_persist_winner_products
-                    await auto_persist_winner_products(
-                        session=session,
-                        content=response_content_raw,
-                        org_id=org_id,
-                        conversation_id=conversation.id,
-                        raw_scraped_data=result.get("raw_scraped_data"),
-                    )
-                except Exception as e:
-                    logger.error(f"Error auto-persisting winner products: {e}")
+            # Auto-persist winner products: ya se ejecutó arriba (antes de
+            # crear assistant_message) para garantizar que persisted_product_ids
+            # y selectable_products queden en meta_data.
 
             await session.commit()
 
@@ -367,6 +384,8 @@ async def send_message_stream(
                 },
                 "credits_consumed": total_credits,
                 "credits_remaining": credits_remaining,
+                "persisted_product_ids": auto_persisted_product_ids,
+                "selectable_products": selectable_products,
             }
 
             yield emitter.to_sse_done(done_payload)

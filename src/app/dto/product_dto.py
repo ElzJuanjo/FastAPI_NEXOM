@@ -61,3 +61,31 @@ class ImportDropiResponse(BaseModel):
     dropi_name: str
     dropi_stock: int = 0
     variations_count: int = 0
+
+
+# ── Persistencia selectiva de productos ──────────────────────────
+
+class SelectableProductItem(BaseModel):
+    """Producto que el usuario selecciona manualmente para persistir en su catálogo."""
+    name: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = None
+    price_usd: Optional[float] = None
+    image_url: Optional[str] = Field(default=None, max_length=512)
+    source_url: Optional[str] = None
+    source_platform: Optional[str] = None
+    score_total: float = 0
+    score_breakdown: Optional[dict] = None
+    rating: Optional[float] = None
+    monthly_sales: Optional[int] = None
+    seller: Optional[str] = None
+    reviews_count: Optional[int] = None
+    currency: Optional[str] = None
+
+
+class PersistSelectedProductsRequest(BaseModel):
+    products: list[SelectableProductItem] = Field(max_length=10)
+
+
+class PersistSelectedProductsResponse(BaseModel):
+    created_ids: list[str]
+    skipped_names: list[str]

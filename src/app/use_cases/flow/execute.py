@@ -223,15 +223,21 @@ class FlowExecute:
                 ps_content = output.get("content", "")
                 if ps_content:
                     try:
-                        from app.use_cases.product.auto_persist import auto_persist_winner_products
+                        from app.use_cases.product.auto_persist import (
+                            auto_persist_winner_products,
+                            extract_selectable_products,
+                        )
                         session = self._flow_repo._session
-                        raw_scraped = output.get("scraped_sources") or {}
-                        await auto_persist_winner_products(
+                        raw_scraped = output.get("raw_scraped_data") or {}
+                        created_ids = await auto_persist_winner_products(
                             session=session,
                             content=ps_content,
                             org_id=flow.organization_id,
                             raw_scraped_data=raw_scraped,
                         )
+                        # Store in output so conversation meta_data gets them
+                        output["persisted_product_ids"] = created_ids
+                        output["selectable_products"] = extract_selectable_products(ps_content) or []
                     except Exception as e:
                         import logging
                         logging.getLogger(__name__).error(f"Error auto-persisting flow winner products: {e}")
@@ -306,6 +312,8 @@ class FlowExecute:
                         "images": output.get("images"),
                         "prompt_suggestions": output.get("prompt_suggestions"),
                         "generation_params": output.get("generation_params"),
+                        "persisted_product_ids": output.get("persisted_product_ids"),
+                        "selectable_products": output.get("selectable_products"),
                     },
                 )
                 session.add(assistant_msg)
@@ -340,6 +348,8 @@ class FlowExecute:
                     "tokens": out.get("tokens_total", 0),
                     "duration_ms": out.get("duration_ms", 0),
                     "error": out.get("error"),
+                    "persisted_product_ids": out.get("persisted_product_ids") or [],
+                    "selectable_products": out.get("selectable_products") or [],
                 }
                 for sid, out in final_state["step_outputs"].items()
             },

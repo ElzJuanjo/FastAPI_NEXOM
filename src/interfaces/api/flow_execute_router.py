@@ -37,6 +37,9 @@ async def execute_flow(
 
     flow_context = body.context or {}
     flow_context["_user_id"] = user_id
+    if body.reference_image_url:
+        flow_context["reference_image_url"] = body.reference_image_url
+        flow_context["input_images"] = [body.reference_image_url]
 
     try:
         result = await use_case.execute(
@@ -86,6 +89,9 @@ async def execute_flow_stream(
 
     flow_context = body.context or {}
     flow_context["_user_id"] = user_id
+    if body.reference_image_url:
+        flow_context["reference_image_url"] = body.reference_image_url
+        flow_context["input_images"] = [body.reference_image_url]
 
     async def stream_generator():
         try:
@@ -141,6 +147,8 @@ async def execute_flow_stream(
                     "tokens": out.get("tokens", 0),
                     "duration_ms": out.get("duration_ms", 0),
                     "error": out.get("error"),
+                    "persisted_product_ids": out.get("persisted_product_ids") or [],
+                    "selectable_products": out.get("selectable_products") or [],
                 }
 
             done_payload = {

@@ -82,10 +82,13 @@ CRITICAL INTERACTION RULES:
 - Present all findings in the scoring table format. Don't ask which products to analyze.
 - EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
 
-─── STRUCTURED DATA BLOCK (MANDATORY) ───
-EVERY TIME you deliver a product analysis that includes WINNING PRODUCTS (Score ≥ 75), you MUST append an HTML comment block at the very end of your response with the winning products in JSON format. This is used by the system to auto-save winning products to the user's catalog.
+─── STRUCTURED DATA BLOCKS (MANDATORY) ───
 
-The block MUST follow this exact format:
+You MUST append TWO HTML comment blocks at the very end of your response whenever relevant.
+Both blocks are invisible to the user and must appear AFTER all readable content.
+
+━━ BLOCK 1 — WINNERS (auto-saved, Score ≥ 75) ━━
+Include this block whenever you have at least 1 winner product.
 
 <!--PRODUCT_JSON
 [
@@ -107,16 +110,45 @@ The block MUST follow this exact format:
 ]
 -->
 
-RULES FOR THE JSON BLOCK:
-- Include ONLY products with Score ≥ 75 (winners). Do NOT include potential or discarded products.
+━━ BLOCK 2 — SELECTABLE PRODUCTS (Score 50-74, user decides) ━━
+Include this block whenever you have at least 1 potential product (score 50-74).
+These are NOT auto-saved — the user will be shown a selector to choose which ones to keep.
+
+<!--SELECTABLE_PRODUCTS_JSON
+[
+  {
+    "name": "Product Name (clean, concise — no emojis, no source prefix)",
+    "description": "Brief product description for catalog (1-2 sentences max)",
+    "price_usd": 15.00,
+    "image_url": "https://actual-image-url-from-the-data",
+    "source_platform": "mercadolibre|google_shopping|aliexpress|amazon|temu|shopee",
+    "source_url": "https://actual-product-url-from-the-data",
+    "score_total": 62.0,
+    "score_breakdown": {"ventas": 60, "margen": 55, "tendencia": 65, "competencia_inv": 70, "rating": 60},
+    "rating": 4.0,
+    "monthly_sales": 120,
+    "seller": "Seller Name",
+    "reviews_count": 45,
+    "currency": "COP"
+  }
+]
+-->
+
+RULES FOR BOTH BLOCKS:
+- BLOCK 1: ONLY products with Score ≥ 75. BLOCK 2: ONLY products with Score 50-74.
 - "name" must be a clean product name suitable for a catalog — no emojis, no "🏆", no source prefix.
 - "price_usd" should be the price converted to USD (approximate). Use 0 if unknown.
-- "image_url" MUST be the actual image URL from the scraped data. NEVER leave empty if data has one.
+- "image_url" MUST be the actual image URL from the scraped product data
+  (mercadolibre/google_shopping/aliexpress/amazon/temu/shopee CDN).
+  NEVER use a reference image the user uploaded — that one is provided ONLY
+  as visual context for understanding the request, NOT for catalog persistence.
+  If a candidate has no scraped image, leave the field empty rather than
+  fabricating one or reusing the user's upload.
 - "source_url" MUST be the actual product URL from the scraped data. NEVER invent or fabricate URLs.
-- Include the block ONLY when you have at least 1 winning product.
-- The JSON must be valid — no trailing commas, no comments inside it.
-- Maximum 10 products in the array.
-- The block is invisible to the user (HTML comment), so it doesn't affect the reading experience."""
+- The JSON must be valid — no trailing commas, no comments inside the JSON arrays.
+- Maximum 10 products per block.
+- Both blocks are invisible to the user (HTML comments), so they don't affect the reading experience.
+- If no winners exist, omit BLOCK 1. If no potentials exist, omit BLOCK 2."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         """Override: incluye los datos scrapeados con scoring en el mensaje."""

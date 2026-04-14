@@ -64,6 +64,37 @@ def _extract_product_json(content: str) -> list[dict] | None:
     return None
 
 
+# ── Selectable products extraction (Score 50-74) ─────────────────────────────
+
+def extract_selectable_products(content: str) -> list[dict] | None:
+    """
+    Extrae productos potenciales (score 50-74) desde el bloque
+    <!--SELECTABLE_PRODUCTS_JSON [...] --> del output del agente.
+
+    Estos productos NO se autopersisten — el usuario elige cuáles guardar
+    a través del componente ProductSelectionCard en el chat.
+    """
+    if not content or "<!--SELECTABLE_PRODUCTS_JSON" not in content:
+        return None
+
+    match = re.search(
+        r'<!--\s*SELECTABLE_PRODUCTS_JSON\s*(\[.*?\])\s*-->',
+        content,
+        re.DOTALL,
+    )
+    if not match:
+        return None
+
+    try:
+        data = json.loads(match.group(1))
+        if isinstance(data, list) and len(data) > 0:
+            return data
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Failed to parse SELECTABLE_PRODUCTS_JSON block: {e}")
+
+    return None
+
+
 # ── Fallback: extract from raw scraped data ──────────────────────────────────
 
 def extract_winners_from_scraped(raw_scraped_data: dict) -> list[dict] | None:
@@ -258,13 +289,29 @@ def _normalize_product(item: dict) -> dict | None:
         except (ValueError, TypeError):
             pass
 
-    # Robust image URL extraction — try multiple fields
+    # Robust image URL extraction — try multiple fields.
+    # Bloquea imágenes que vengan del usuario (chat-uploads en S3 propio o
+    # data URLs base64 de uploads efímeros). El image_url del producto
+    # debe ser SIEMPRE la URL de la imagen scrapeada (CDN del marketplace).
     image_url = ""
+    blocked_substrings = (
+        "/chat-uploads/",            # bucket propio: imágenes subidas por usuario
+        "nexom-creatives",           # safety: cualquier URL de nuestro bucket de creatives
+    )
     for img_field in ("image_url", "thumbnail", "image", "gallery_url"):
         candidate = str(item.get(img_field, "")).strip()
-        if candidate and candidate.startswith("http") and len(candidate) <= 512:
-            image_url = candidate
-            break
+        if not candidate:
+            continue
+        if candidate.startswith("data:"):
+            continue  # data URL = upload efímero del usuario, nunca persistir
+        if not candidate.startswith("http"):
+            continue
+        if len(candidate) > 512:
+            continue
+        if any(blocked in candidate for blocked in blocked_substrings):
+            continue
+        image_url = candidate
+        break
 
     score_total = item.get("score_total", 0)
     try:

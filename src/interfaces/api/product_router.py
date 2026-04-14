@@ -11,6 +11,7 @@ from app.dto.product_dto import (
     CreateProductRequest, UpdateProductRequest,
     ProductResponse, ProductListResponse,
     ImportDropiRequest, ImportDropiResponse,
+    PersistSelectedProductsRequest, PersistSelectedProductsResponse,
 )
 from app.use_cases.product.crud import ProductCreate, ProductList, ProductUpdate, ProductDelete, ProductNotFoundError
 from interfaces.dependencies.product_dependencies import (
@@ -225,3 +226,59 @@ async def delete_product(
     await session.commit()
     logger.info(f"Product {product_id} hard deleted")
     
+
+# ── Persistencia selectiva de productos ──────────────────────────
+
+@router.post("/persist-selected", response_model=PersistSelectedProductsResponse, status_code=status.HTTP_201_CREATED)
+async def persist_selected_products(
+    body: PersistSelectedProductsRequest,
+    org_id: str = Depends(get_current_org_id),
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Persiste manualmente los productos que el usuario seleccionó desde el chat.
+    Recibe una lista de hasta 10 productos con sus datos y los guarda en el catálogo.
+    Los winners ya fueron autopersistidos; este endpoint es para los potenciales (score 50-74).
+    """
+    from app.use_cases.product.auto_persist import _normalize_product, _product_exists
+    from domain.entities.product import Product
+
+    created_ids: list[str] = []
+    skipped_names: list[str] = []
+
+    for item in body.products[:10]:
+        item_dict = item.model_dump()
+
+        # Forzar score al threshold mínimo para que _normalize_product los acepte
+        # (los potenciales tienen score < 75 pero el usuario decidió guardarlos)
+        item_dict["score_total"] = max(item_dict.get("score_total", 0), 75.0)
+
+        normalized = _normalize_product(item_dict)
+        if not normalized:
+            skipped_names.append(item_dict.get("name", ""))
+            continue
+
+        if await _product_exists(session, org_id, normalized["name"]):
+            skipped_names.append(normalized["name"])
+            continue
+
+        product = Product(
+            organization_id=org_id,
+            name=normalized["name"],
+            description=normalized["description"],
+            price_usd=normalized["price_usd"],
+            image_url=normalized["image_url"],
+            is_active=True,
+            extra_data={
+                **normalized["extra_data"],
+                "manually_selected": True,  # marca que el user lo eligió manualmente
+            },
+        )
+        session.add(product)
+        await session.flush()
+        created_ids.append(product.id)
+
+    await session.commit()
+    logger.info(f"persist-selected: created={len(created_ids)} skipped={len(skipped_names)} org={org_id}")
+    return PersistSelectedProductsResponse(created_ids=created_ids, skipped_names=skipped_names)

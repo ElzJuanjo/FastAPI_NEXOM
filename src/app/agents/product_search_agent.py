@@ -44,9 +44,14 @@ You are provided REAL product data from multiple sources:
 
 SCORING SYSTEM — Calculate for each product:
 SCORE_TOTAL = (Sales × 0.30) + (Margin × 0.25) + (Trend × 0.20) + (Competition_inv × 0.15) + (Rating × 0.10)
-Scale: 0-100. WINNER THRESHOLD: Score ≥ 75/100
+Scale: 0-100.
 
-WINNING PRODUCT CRITERIA:
+SCORE BUCKETS (for classification only — ALL are user-selectable):
+- WINNER:    Score ≥ 75  → proven demand, ready to launch
+- POTENTIAL: Score 50-74 → promising, needs validation
+- REJECTED:  Score < 50  → risky or saturated
+
+WINNING PRODUCT CRITERIA (≥75):
 - 200+ estimated monthly sales
 - Margin >40% (retail price vs supplier price)
 - Rating >4.2 stars
@@ -56,24 +61,30 @@ CRITICAL RULES:
 - ONLY use the data provided, do NOT invent products or prices
 - Compare prices between supplier (AliExpress/Temu) and retail (ML/Amazon/Google Shopping)
 - If insufficient data from a source, state it clearly
+- HARD LIMIT: The table AND the CANDIDATE_PRODUCTS_JSON block MUST contain
+  AT MOST 20 products. If more qualify, pick the 20 with highest score_total.
+  The number of rows in the table MUST EQUAL the number of entries in the JSON block.
 
 RESPONSE FORMAT:
 1. SCORING TABLE — use this EXACT markdown table format:
-   | Product | Score | Est. Sales | Margin | Trend | Competition | Rating | Link | Verdict |
-   
+   | Product | Score | Bucket | Est. Sales | Margin | Trend | Competition | Rating | Link |
+
+   - Include up to 20 products total (mix of winners, potentials, and rejected if needed).
+   - Sort by score_total descending.
+   - "Bucket" column values: Winner / Potential / Rejected.
+
    LINK COLUMN RULES (CRITICAL — READ CAREFULLY):
    - The data already contains pre-formatted markdown links like: [MercadoLibre](https://real-url)
    - You MUST copy these links EXACTLY as-is into the Link column. Do NOT modify them.
    - Do NOT strip the URL and show only the platform name. The link MUST be clickable.
-   - Do NOT show the link anywhere else in your response — ONLY in the table and the PRODUCT_JSON block.
+   - Do NOT show the link anywhere else in your response — ONLY in the table and the CANDIDATE_PRODUCTS_JSON block.
    - There is NO separate "Source" or "Fuente" column. The Link IS the source reference.
 
-2. TOP 3 WINNING PRODUCTS: Those exceeding Score ≥ 75 with justification.
-   - Reference each product by name only, do NOT repeat the link here.
-3. ARBITRAGE ANALYSIS: Supplier vs retail pricing, cross-platform opportunities
-4. COMPETITION ANALYSIS: Saturation level per product
-5. RECOMMENDATIONS: Prioritized concrete actions
-6. ALERTS: Products to avoid and why
+2. TOP PICKS: Brief justification for the top 3-5 products (reference by name only, no link).
+3. ARBITRAGE ANALYSIS: Supplier vs retail pricing, cross-platform opportunities.
+4. COMPETITION ANALYSIS: Saturation level per product.
+5. RECOMMENDATIONS: Prioritized concrete actions.
+6. ALERTS: Products to avoid and why.
 
 Respond in the same language the user writes in.
 
@@ -81,16 +92,16 @@ CRITICAL INTERACTION RULES:
 - NEVER offer numbered option menus. Deliver the complete product analysis directly.
 - Present all findings in the scoring table format. Don't ask which products to analyze.
 - EXECUTE, DON'T ASK. Every message without deliverable content is wasted money.
+- Do NOT tell the user products will be "auto-saved" — nothing is auto-saved anymore.
+  The user will explicitly pick which products to persist from a selector UI.
 
-─── STRUCTURED DATA BLOCKS (MANDATORY) ───
+─── STRUCTURED DATA BLOCK (MANDATORY) ───
 
-You MUST append TWO HTML comment blocks at the very end of your response whenever relevant.
-Both blocks are invisible to the user and must appear AFTER all readable content.
+You MUST append ONE HTML comment block at the very end of your response
+whenever you have at least 1 analyzed product. The block is invisible to
+the user and must appear AFTER all readable content.
 
-━━ BLOCK 1 — WINNERS (auto-saved, Score ≥ 75) ━━
-Include this block whenever you have at least 1 winner product.
-
-<!--PRODUCT_JSON
+<!--CANDIDATE_PRODUCTS_JSON
 [
   {
     "name": "Product Name (clean, concise — no emojis, no source prefix)",
@@ -101,6 +112,7 @@ Include this block whenever you have at least 1 winner product.
     "source_url": "https://actual-product-url-from-the-data",
     "score_total": 82.5,
     "score_breakdown": {"ventas": 85, "margen": 70, "tendencia": 90, "competencia_inv": 80, "rating": 88},
+    "bucket": "winner",
     "rating": 4.5,
     "monthly_sales": 350,
     "seller": "Seller Name",
@@ -110,45 +122,31 @@ Include this block whenever you have at least 1 winner product.
 ]
 -->
 
-━━ BLOCK 2 — SELECTABLE PRODUCTS (Score 50-74, user decides) ━━
-Include this block whenever you have at least 1 potential product (score 50-74).
-These are NOT auto-saved — the user will be shown a selector to choose which ones to keep.
-
-<!--SELECTABLE_PRODUCTS_JSON
-[
-  {
-    "name": "Product Name (clean, concise — no emojis, no source prefix)",
-    "description": "Brief product description for catalog (1-2 sentences max)",
-    "price_usd": 15.00,
-    "image_url": "https://actual-image-url-from-the-data",
-    "source_platform": "mercadolibre|google_shopping|aliexpress|amazon|temu|shopee",
-    "source_url": "https://actual-product-url-from-the-data",
-    "score_total": 62.0,
-    "score_breakdown": {"ventas": 60, "margen": 55, "tendencia": 65, "competencia_inv": 70, "rating": 60},
-    "rating": 4.0,
-    "monthly_sales": 120,
-    "seller": "Seller Name",
-    "reviews_count": 45,
-    "currency": "COP"
-  }
-]
--->
-
-RULES FOR BOTH BLOCKS:
-- BLOCK 1: ONLY products with Score ≥ 75. BLOCK 2: ONLY products with Score 50-74.
+RULES FOR THE BLOCK:
+- HARD LIMIT: Maximum 20 entries in the array. Pick the 20 with highest score_total.
+- "bucket" field values: "winner" (≥75), "potential" (50-74), "rejected" (<50).
+- The number of entries MUST equal the number of rows in the markdown table.
+- Sort by score_total descending.
 - "name" must be a clean product name suitable for a catalog — no emojis, no "🏆", no source prefix.
 - "price_usd" should be the price converted to USD (approximate). Use 0 if unknown.
 - "image_url" MUST be the actual image URL from the scraped product data
   (mercadolibre/google_shopping/aliexpress/amazon/temu/shopee CDN).
   NEVER use a reference image the user uploaded — that one is provided ONLY
-  as visual context for understanding the request, NOT for catalog persistence.
+  as visual context for understanding the request/style, NOT for catalog persistence.
   If a candidate has no scraped image, leave the field empty rather than
   fabricating one or reusing the user's upload.
 - "source_url" MUST be the actual product URL from the scraped data. NEVER invent or fabricate URLs.
 - The JSON must be valid — no trailing commas, no comments inside the JSON arrays.
-- Maximum 10 products per block.
-- Both blocks are invisible to the user (HTML comments), so they don't affect the reading experience.
-- If no winners exist, omit BLOCK 1. If no potentials exist, omit BLOCK 2."""
+- If no products were analyzed at all, omit the block entirely.
+
+─── REFERENCE IMAGE HANDLING ───
+
+If the user attached a reference image, USE IT as visual/style context to
+refine your product search interpretation. For example, if the image shows
+a specific product category (shoes, kitchen gadget, skincare), prioritize
+that category in your analysis and table. Mention briefly in section 2
+(TOP PICKS) how the reference image influenced your selection.
+Do NOT ignore the image. Do NOT copy its URL into any product entry."""
 
     def build_messages(self, user_input: str, context: dict | None = None) -> list[dict]:
         """Override: incluye los datos scrapeados con scoring en el mensaje."""
@@ -237,7 +235,19 @@ RULES FOR BOTH BLOCKS:
                 parts.append(f"=== RANKING DE PRODUCTOS ({len(scored)} analizados) ===")
                 parts.append(f"🏆 Ganadores (≥75): {len(winners)} | ⚡ Potenciales (50-74): {len(potential)} | ❌ Descartados (<50): {len(discarded)}\n")
 
-                for i, p in enumerate(scored[:20], 1):
+                # Send at most 20 products to the LLM, sorted by score_total desc.
+                sorted_by_score = sorted(
+                    scored,
+                    key=lambda p: p.get("score_total", 0),
+                    reverse=True,
+                )
+                relevant = sorted_by_score[:20]
+                parts.append(
+                    f"NOTA AL LLM: Debes incluir EXACTAMENTE estos {len(relevant)} productos "
+                    f"en la tabla y en el bloque CANDIDATE_PRODUCTS_JSON (máximo 20).\n"
+                )
+
+                for i, p in enumerate(relevant, 1):
                     raw_url = p.get("url", "").strip()
                     source_name = p.get("source", "N/A")
                     image_url = p.get("image_url", "").strip()

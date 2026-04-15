@@ -1,5 +1,5 @@
 """
-Endpoints para ejecutar Flows — sync y streaming SSE.
+Endpoints para ejecutar Flows — sync, streaming SSE, y resume con selección.
 """
 
 import logging
@@ -11,9 +11,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from infra.config.database import get_session
 from infra.events.progress import ProgressEmitter, ProgressEvent
-from app.dto.flow_execute_dto import ExecuteFlowRequest, ExecuteFlowResponse, StepResultSummary
-from app.use_cases.flow.execute import FlowExecute, FlowNotFoundError, FlowAlreadyRunningError, FlowQuotaExceededError
-from interfaces.dependencies.flow_execute_dependencies import get_flow_execute
+from app.dto.flow_execute_dto import (
+    ExecuteFlowRequest, ExecuteFlowResponse, StepResultSummary,
+    ResumeFlowWithSelectionRequest, ResumeFlowWithSelectionResponse,
+)
+from app.use_cases.flow.execute import (
+    FlowExecute, FlowNotFoundError, FlowAlreadyRunningError, FlowQuotaExceededError,
+)
+from app.use_cases.flow.resume import (
+    FlowResumeWithSelection, FlowNotPausedError, FlowNoSelectionError,
+)
+from interfaces.dependencies.flow_execute_dependencies import (
+    get_flow_execute, get_flow_resume,
+)
 from interfaces.dependencies.auth_dependencies import get_current_user_id
 from interfaces.dependencies.org_membership import get_current_org
 from domain.entities.organization import Organization
@@ -21,6 +31,31 @@ from domain.entities.organization import Organization
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/flows", tags=["Flow Execution"])
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _build_execute_response(result: dict) -> ExecuteFlowResponse:
+    """Maps a FlowExecute result dict (including paused state) to the response DTO."""
+    return ExecuteFlowResponse(
+        flow_id=result["flow_id"],
+        status=str(result["status"]),
+        total_steps=result.get("total_steps", 0),
+        completed_steps=result.get("completed_steps", 0),
+        total_tokens=result.get("total_tokens", 0),
+        total_duration_ms=result.get("total_duration_ms", 0),
+        step_results={
+            k: StepResultSummary(**v) for k, v in result.get("step_results", {}).items()
+        },
+        error=result.get("error"),
+        paused=bool(result.get("paused")),
+        pause_reason=result.get("pause_reason"),
+        pause_step_id=result.get("pause_step_id"),
+        candidate_products=result.get("candidate_products"),
+        credits_consumed=result.get("credits_consumed", 0),
+        credits_remaining=result.get("credits_remaining"),
+        conversation_id=result.get("conversation_id"),
+    )
 
 
 # ── Sync endpoint ─────────────────────────────────────────────────────────────
@@ -58,19 +93,7 @@ async def execute_flow(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Flow execution error: {str(e)}")
 
     await session.commit()
-
-    return ExecuteFlowResponse(
-        flow_id=result["flow_id"],
-        status=result["status"],
-        total_steps=result["total_steps"],
-        completed_steps=result["completed_steps"],
-        total_tokens=result["total_tokens"],
-        total_duration_ms=result["total_duration_ms"],
-        step_results={
-            k: StepResultSummary(**v) for k, v in result["step_results"].items()
-        },
-        error=result.get("error"),
-    )
+    return _build_execute_response(result)
 
 
 # ── SSE streaming endpoint ───────────────────────────────────────────────────
@@ -147,22 +170,26 @@ async def execute_flow_stream(
                     "tokens": out.get("tokens", 0),
                     "duration_ms": out.get("duration_ms", 0),
                     "error": out.get("error"),
-                    "persisted_product_ids": out.get("persisted_product_ids") or [],
-                    "selectable_products": out.get("selectable_products") or [],
+                    "candidate_products": out.get("candidate_products") or [],
                 }
 
             done_payload = {
                 "flow_id": result["flow_id"],
-                "status": result["status"],
-                "total_steps": result["total_steps"],
-                "completed_steps": result["completed_steps"],
-                "total_tokens": result["total_tokens"],
-                "total_duration_ms": result["total_duration_ms"],
+                "status": str(result["status"]),
+                "total_steps": result.get("total_steps", 0),
+                "completed_steps": result.get("completed_steps", 0),
+                "total_tokens": result.get("total_tokens", 0),
+                "total_duration_ms": result.get("total_duration_ms", 0),
                 "credits_consumed": result.get("credits_consumed", 0),
                 "credits_remaining": result.get("credits_remaining"),
                 "conversation_id": result.get("conversation_id"),
                 "step_results": step_results,
                 "error": result.get("error"),
+                # ── Campos de pausa ──
+                "paused": bool(result.get("paused")),
+                "pause_reason": result.get("pause_reason"),
+                "pause_step_id": result.get("pause_step_id"),
+                "candidate_products": result.get("candidate_products"),
             }
 
             yield emitter.to_sse_done(done_payload)
@@ -179,4 +206,68 @@ async def execute_flow_stream(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+# ── Resume with product selection ────────────────────────────────────────────
+
+@router.post("/{flow_id}/resume-with-selection", response_model=ResumeFlowWithSelectionResponse)
+async def resume_flow_with_selection(
+    flow_id: str,
+    body: ResumeFlowWithSelectionRequest,
+    organization: Organization = Depends(get_current_org),
+    user_id: str = Depends(get_current_user_id),
+    use_case: FlowResumeWithSelection = Depends(get_flow_resume),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Reanuda un flow pausado tras product_search con los productos que el usuario eligió.
+
+    - Requiere que el flow esté en status=paused con _pending_selection en context.
+    - Persiste los productos elegidos (score real + bucket correspondiente).
+    - Los inyecta como `selected_products` en el shared_context para que los steps
+      posteriores (image_gen, ads, copywriting, etc.) solo trabajen con ellos.
+    - Mínimo 1 producto, máximo 20 (validado por DTO).
+    """
+    plan = organization.plan
+    selected_dicts = [item.model_dump() for item in body.selected_products]
+
+    try:
+        result = await use_case.execute(
+            flow_id=flow_id,
+            selected_products=selected_dicts,
+            organization=organization,
+            plan=plan,
+            user_id=user_id,
+        )
+    except FlowNoSelectionError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except FlowNotPausedError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        logger.error(f"Resume flow error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Flow resume error: {str(e)}",
+        )
+
+    await session.commit()
+
+    return ResumeFlowWithSelectionResponse(
+        flow_id=result["flow_id"],
+        status=str(result["status"]),
+        paused=bool(result.get("paused")),
+        total_steps=result.get("total_steps", 0),
+        completed_steps=result.get("completed_steps", 0),
+        total_tokens=result.get("total_tokens", 0),
+        total_duration_ms=result.get("total_duration_ms", 0),
+        credits_consumed=result.get("credits_consumed", 0),
+        credits_remaining=result.get("credits_remaining"),
+        conversation_id=result.get("conversation_id"),
+        persisted_product_ids=result.get("persisted_product_ids") or [],
+        skipped_names=result.get("skipped_names") or [],
+        step_results={
+            k: StepResultSummary(**v) for k, v in result.get("step_results", {}).items()
+        },
+        error=result.get("error"),
     )

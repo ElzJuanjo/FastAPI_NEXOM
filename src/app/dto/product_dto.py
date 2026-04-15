@@ -3,7 +3,7 @@ DTOs para Product.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel, Field
 
@@ -66,7 +66,11 @@ class ImportDropiResponse(BaseModel):
 # ── Persistencia selectiva de productos ──────────────────────────
 
 class SelectableProductItem(BaseModel):
-    """Producto que el usuario selecciona manualmente para persistir en su catálogo."""
+    """Producto candidato que el usuario selecciona manualmente para persistir en su catálogo.
+
+    Se admite cualquier score (winner, potential o rejected) — la clasificación
+    en buckets se preserva en extra_data.bucket del producto persistido.
+    """
     name: str = Field(min_length=1, max_length=255)
     description: Optional[str] = None
     price_usd: Optional[float] = None
@@ -75,6 +79,7 @@ class SelectableProductItem(BaseModel):
     source_platform: Optional[str] = None
     score_total: float = 0
     score_breakdown: Optional[dict] = None
+    bucket: Optional[Literal["winner", "potential", "rejected"]] = None
     rating: Optional[float] = None
     monthly_sales: Optional[int] = None
     seller: Optional[str] = None
@@ -83,7 +88,8 @@ class SelectableProductItem(BaseModel):
 
 
 class PersistSelectedProductsRequest(BaseModel):
-    products: list[SelectableProductItem] = Field(max_length=10)
+    # Máximo 20 productos seleccionables por request,
+    products: list[SelectableProductItem] = Field(max_length=20)
 
 
 class PersistSelectedProductsResponse(BaseModel):

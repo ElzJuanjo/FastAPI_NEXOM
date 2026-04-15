@@ -109,15 +109,15 @@ async def import_from_dropi(
     if raw_desc:
         import html
         description = html.unescape(re.sub(r'<[^>]+>', ' ', raw_desc))
-        description = re.sub(r'\s+', ' ', description).strip()[:500]
+        description = re.sub(r'\s+', ' ', description).strip()
     else:
         description = category or name
 
     # ── Build extra_data with SAME structure as auto_persist ──
     # This is what the frontend reads to render the rich product card
     extra_data = {
-        "auto_persisted": True,
         "source": "dropi_import",
+        "bucket": "dropi",                # filtro diferenciado en UI
         "score_total": 0,
         "score_breakdown": {
             "ventas": 0,
@@ -237,47 +237,21 @@ async def persist_selected_products(
     session: AsyncSession = Depends(get_session),
 ):
     """
-    Persiste manualmente los productos que el usuario seleccionó desde el chat.
-    Recibe una lista de hasta 10 productos con sus datos y los guarda en el catálogo.
-    Los winners ya fueron autopersistidos; este endpoint es para los potenciales (score 50-74).
+    Persiste manualmente los productos que el usuario seleccionó desde el chat o flow.
+
+    Recibe una lista de hasta 20 productos con sus datos y los guarda en el catálogo
+    con su score REAL y su bucket de clasificación (winner/potential/
+    rejected) preservado en extra_data para que la página de Productos pueda filtrarlos
+    correctamente.
     """
-    from app.use_cases.product.auto_persist import _normalize_product, _product_exists
-    from domain.entities.product import Product
+    from app.use_cases.product.auto_persist import persist_selected_candidates
 
-    created_ids: list[str] = []
-    skipped_names: list[str] = []
-
-    for item in body.products[:10]:
-        item_dict = item.model_dump()
-
-        # Forzar score al threshold mínimo para que _normalize_product los acepte
-        # (los potenciales tienen score < 75 pero el usuario decidió guardarlos)
-        item_dict["score_total"] = max(item_dict.get("score_total", 0), 75.0)
-
-        normalized = _normalize_product(item_dict)
-        if not normalized:
-            skipped_names.append(item_dict.get("name", ""))
-            continue
-
-        if await _product_exists(session, org_id, normalized["name"]):
-            skipped_names.append(normalized["name"])
-            continue
-
-        product = Product(
-            organization_id=org_id,
-            name=normalized["name"],
-            description=normalized["description"],
-            price_usd=normalized["price_usd"],
-            image_url=normalized["image_url"],
-            is_active=True,
-            extra_data={
-                **normalized["extra_data"],
-                "manually_selected": True,  # marca que el user lo eligió manualmente
-            },
-        )
-        session.add(product)
-        await session.flush()
-        created_ids.append(product.id)
+    items = [item.model_dump() for item in body.products]
+    created_ids, skipped_names = await persist_selected_candidates(
+        session=session,
+        items=items,
+        org_id=org_id,
+    )
 
     await session.commit()
     logger.info(f"persist-selected: created={len(created_ids)} skipped={len(skipped_names)} org={org_id}")

@@ -17,6 +17,42 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+async def _resolve_flow_images_to_base64(image_urls: list[str]) -> list[str]:
+    """
+    Resolve image URLs (S3, CDN, etc.) to base64 data URIs for flow steps.
+
+    In chat mode, executor_node._resolve_images_to_base64() handles this.
+    In flow mode, this function does the equivalent work so agents receive
+    usable base64 images instead of raw URLs that may fail to download
+    inside the agent (private S3 buckets, CORS restrictions, etc.).
+    """
+    if not image_urls:
+        return []
+
+    from infra.tools.openrouter_client import openrouter_client
+
+    resolved = []
+    for url in image_urls:
+        if not url:
+            continue
+        # Already base64 — pass through
+        if url.startswith("data:"):
+            resolved.append(url)
+            continue
+        # URL — download and convert
+        try:
+            b64 = await openrouter_client._download_image_as_base64(url)
+            if b64:
+                resolved.append(b64)
+                logger.info(f"Flow image resolved to base64: {url[:80]}...")
+            else:
+                logger.warning(f"Flow image resolution failed (returned None): {url[:80]}")
+        except Exception as e:
+            logger.warning(f"Flow image resolution error: {e} for {url[:80]}")
+
+    return resolved
+
+
 async def execute_single_step(
     step: dict,
     step_outputs: dict[str, dict],
@@ -57,6 +93,21 @@ async def execute_single_step(
 
     try:
         context = get_step_context(step, step_outputs, shared_context)
+
+        # ── Resolve image URLs to base64 for agents that need them ──
+        # In chat mode, executor_node does this. In flow mode, we must do
+        # it here so agents (especially image_gen) receive usable base64
+        # data instead of raw S3 URLs that may fail to download later.
+        raw_images = context.get("input_images") or []
+        if raw_images and agent_type in ("image_gen", "product_search", "branding", "copywriting", "ads", "landing_page"):
+            resolved_images = await _resolve_flow_images_to_base64(raw_images)
+            if resolved_images:
+                context["input_images"] = resolved_images
+                # Also set reference_image_url to the resolved base64 so
+                # image_gen_agent picks it up directly without re-downloading
+                if agent_type == "image_gen":
+                    context["reference_image_url"] = resolved_images[0]
+                logger.info(f"Flow step {step_id}: resolved {len(resolved_images)}/{len(raw_images)} images to base64")
 
         # Build a meaningful input from the flow context
         user_input = _build_step_input(step, context)
@@ -192,6 +243,11 @@ def _build_step_input(step: dict, context: dict) -> str:
     """
     Build a meaningful input for the agent based on flow context.
     Instead of generic "Ejecuta la tarea", use the actual user context.
+
+    Si el flow pasó por una pausa de selección tras product_search, se inyecta
+    `selected_products` en el contexto y se usa ESE subset en vez del dump
+    completo del agente. Esto asegura que los steps posteriores (image_gen,
+    ads, copywriting, etc.) solo trabajen con los productos que el usuario eligió.
     """
     step_name = step.get("name", "")
     agent_type = step.get("agent_type", "")
@@ -208,11 +264,22 @@ def _build_step_input(step: dict, context: dict) -> str:
     prev_output = context.get("previous_step_output", "")
     prev_agent = context.get("previous_step_agent", "")
 
-    # ── image_gen after product_search: extract the real product name ──
-    if agent_type == "image_gen" and prev_agent == "product_search" and prev_output:
-        winner_name = _extract_top_product_name(prev_output)
-        if winner_name:
-            product = winner_name
+    # ── Productos seleccionados por el usuario tras la pausa ──
+    # Si el flow incluyó product_search y el usuario ya eligió, estos son
+    # los ÚNICOS productos que deben considerarse hacia adelante.
+    selected_products = context.get("selected_products") or []
+
+    # ── image_gen después de product_search: usar el primer producto elegido ──
+    if agent_type == "image_gen" and prev_agent == "product_search":
+        if selected_products:
+            # Tomar el primer producto elegido como referencia principal
+            first = selected_products[0]
+            if isinstance(first, dict) and first.get("name"):
+                product = first["name"]
+        elif prev_output:
+            winner_name = _extract_top_product_name(prev_output)
+            if winner_name:
+                product = winner_name
 
     # Build contextual input
     parts = []
@@ -247,7 +314,25 @@ def _build_step_input(step: dict, context: dict) -> str:
 
     instruction = instructions.get(agent_type, f"Execute task: {step_name}")
 
-    # Combine everything
+    # ── Si hay selected_products, reemplazamos el dump de prev_output por
+    # un resumen compacto de los productos elegidos (más focalizado y ahorra
+    # tokens frente a los ~1500 chars del content completo del agente) ──
+    if selected_products and prev_agent == "product_search" and agent_type != "image_gen":
+        lines = ["Selected products (user-picked from product_search):"]
+        for i, sp in enumerate(selected_products[:20], 1):
+            if not isinstance(sp, dict):
+                continue
+            name = sp.get("name", "Unknown")
+            score = sp.get("score_total", 0)
+            platform = sp.get("source_platform", "")
+            price = sp.get("price_usd") or 0
+            lines.append(
+                f"{i}. {name} | score {score} | {platform} | ~${price} USD"
+            )
+        selected_summary = "\n".join(lines)
+        return f"{instruction}\n\n{context_block}\n\n{selected_summary}"
+
+    # Combine everything (comportamiento legacy cuando no hubo selección)
     if prev_output and prev_agent:
         # For image_gen after product_search, don't dump the table — the product name is already in the instruction
         if agent_type == "image_gen" and prev_agent == "product_search":
@@ -261,19 +346,28 @@ def _build_step_input(step: dict, context: dict) -> str:
     
     
 def _extract_top_product_name(content: str) -> str:
-    """Extract the top product name from product_search output."""
+    """Extract the top product name from product_search output.
+
+    Busca primero en el nuevo bloque CANDIDATE_PRODUCTS_JSON; fallback al
+    legacy PRODUCT_JSON; último fallback: primera fila de la tabla markdown.
+    """
     import re
     import json
 
-    match = re.search(r'<!--\s*PRODUCT_JSON\s*(\[.*?\])\s*-->', content, re.DOTALL)
-    if match:
-        try:
-            products = json.loads(match.group(1))
-            if isinstance(products, list) and products:
-                best = max(products, key=lambda p: p.get("score_total", 0))
-                return best.get("name", "").strip()
-        except (json.JSONDecodeError, ValueError):
-            pass
+    for tag in ("CANDIDATE_PRODUCTS_JSON", "PRODUCT_JSON"):
+        match = re.search(
+            rf'<!--\s*{tag}\s*(\[.*?\])\s*-->', content, re.DOTALL,
+        )
+        if match:
+            try:
+                products = json.loads(match.group(1))
+                if isinstance(products, list) and products:
+                    best = max(products, key=lambda p: p.get("score_total", 0))
+                    name = best.get("name", "").strip()
+                    if name:
+                        return name
+            except (json.JSONDecodeError, ValueError):
+                continue
 
     table_match = re.search(r'\|\s*([^|]{5,80}?)\s*\|\s*\d{2,3}\.?\d*\s*\|', content)
     if table_match:
@@ -287,19 +381,40 @@ def _extract_top_product_name(content: str) -> str:
 async def execute_flow(
     state: FlowExecutionState,
     progress_emitter=None,
+    resume_from_step_id: str | None = None,
 ) -> FlowExecutionState:
     """
     Ejecuta un Flow completo, lote por lote.
     Si progress_emitter está presente, emite eventos por cada step.
+
+    PAUSA DE SELECCIÓN DE PRODUCTOS:
+    Cuando un step de tipo 'product_search' completa, la ejecución se detiene
+    y el flow queda en estado `paused` con los candidatos en `pending_candidates`.
+    El usuario debe elegir cuáles productos continúan al resto del flow llamando
+    /flows/{id}/resume-with-selection, que invoca esta función de nuevo con
+    `resume_from_step_id` apuntando al step siguiente al product_search.
+
+    Args:
+        state: FlowExecutionState (puede venir ya parcialmente ejecutado en resume)
+        progress_emitter: emisor opcional de eventos SSE
+        resume_from_step_id: si se provee, solo se ejecutan los steps DESDE este
+            ID en adelante (los previos se consideran ya completados)
     """
     steps = state["steps"]
     step_outputs = dict(state.get("step_outputs", {}))
     shared_context = dict(state.get("shared_context", {}))
     completed_ids = list(state.get("completed_step_ids", []))
 
-    batches = build_execution_batches(steps)
+    # Si es un resume, filtramos los steps que ya se ejecutaron previamente.
+    # Los steps con ID en completed_ids se skippean del batching.
+    if resume_from_step_id:
+        steps_to_run = [s for s in steps if s["id"] not in completed_ids]
+    else:
+        steps_to_run = steps
+
+    batches = build_execution_batches(steps_to_run)
     total_steps = len(steps)
-    step_counter = 0
+    step_counter = len(completed_ids)
 
     for batch_idx, batch in enumerate(batches):
         tasks = [
@@ -316,6 +431,8 @@ async def execute_flow(
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        product_search_result = None
+
         for result in results:
             if isinstance(result, Exception):
                 continue
@@ -328,10 +445,46 @@ async def execute_flow(
                 agent_type = result["agent_type"]
                 shared_context[f"step_{agent_type}_result"] = result["content"][:2000]
 
+                # Detectar product_search completado → señal de pausa
+                if agent_type == "product_search":
+                    product_search_result = result
+
             if result["status"] == "error":
                 state["failed_step_id"] = step_id
 
         step_counter += len(batch)
+
+        # ── Pausa tras product_search ────────────────────────────────────
+        # Solo pausamos si hay MÁS steps pendientes (si product_search es el
+        # último, no tiene sentido pausar). También evitamos re-pausar en
+        # un resume (los selected_products ya están en shared_context).
+        if product_search_result and not resume_from_step_id:
+            remaining_steps = [s for s in steps if s["id"] not in completed_ids]
+            if remaining_steps:
+                # Extraer candidatos del output del agente
+                from app.use_cases.product.auto_persist import extract_candidate_products
+                content = product_search_result.get("content", "") or ""
+                candidates = extract_candidate_products(content) or []
+
+                state["step_outputs"] = step_outputs
+                state["shared_context"] = shared_context
+                state["completed_step_ids"] = completed_ids
+                state["paused"] = True
+                state["pause_reason"] = "awaiting_product_selection"
+                state["pause_step_id"] = product_search_result["step_id"]
+                state["pending_candidates"] = candidates
+                state["completed"] = False
+
+                if progress_emitter:
+                    await progress_emitter.emit(
+                        stage="awaiting_selection",
+                        pct=int(5 + (step_counter / total_steps) * 90),
+                        agent="product_search",
+                        message="Awaiting product selection",
+                        detail=f"{len(candidates)} candidates found — user must select at least 1",
+                    )
+
+                return state
 
     has_errors = any(o.get("status") == "error" for o in step_outputs.values())
 
@@ -339,6 +492,7 @@ async def execute_flow(
     state["shared_context"] = shared_context
     state["completed_step_ids"] = completed_ids
     state["completed"] = True
+    state["paused"] = False
     if has_errors:
         state["error"] = "One or more steps failed during execution"
 

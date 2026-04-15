@@ -3,16 +3,15 @@ Sanitiza el content del agente antes de entregarlo al usuario final.
 
 Los agentes emiten bloques HTML-comment con JSON estructurado al final
 de sus respuestas (<!--BRAND_JSON ... -->, <!--COPY_JSON ... -->,
-<!--LANDING_JSON ... -->, <!--PRODUCT_JSON ... -->,
-<!--SELECTABLE_PRODUCTS_JSON ... -->) para auto-persistencia interna
-y para que el frontend pueda renderizar selectores (potenciales).
+<!--LANDING_JSON ... -->, <!--CANDIDATE_PRODUCTS_JSON ... -->) para
+persistencia interna y para que el frontend pueda renderizar selectores.
 
 Estos bloques son INFRAESTRUCTURA INTERNA y NO deben llegar al usuario.
 Este módulo los elimina de forma segura sin alterar el contenido visible.
 
-NOTA: El extractor de selectable_products debe correr SOBRE EL CONTENIDO
-RAW (antes de pasar por este sanitizer). Solo después se persiste el
-content sanitizado en la BD.
+NOTA: Los extractores (extract_candidate_products, etc.) deben correr
+SOBRE EL CONTENIDO RAW (antes de pasar por este sanitizer). Solo después
+se persiste el content sanitizado en la BD.
 """
 
 from __future__ import annotations
@@ -21,17 +20,22 @@ import re
 
 # Todos los patrones de bloques JSON internos que usan los agentes.
 # Formato: <!-- TAG_JSON {..} --> o <!-- TAG_JSON [{..}] -->
+_INTERNAL_JSON_TAGS = (
+    "BRAND_JSON",
+    "COPY_JSON",
+    "LANDING_JSON",
+    "CANDIDATE_PRODUCTS_JSON",
+)
+
+_TAGS_GROUP = "|".join(_INTERNAL_JSON_TAGS)
+
 _INTERNAL_JSON_PATTERN = re.compile(
-    r'\s*<!--\s*(?:BRAND_JSON|COPY_JSON|LANDING_JSON|PRODUCT_JSON|SELECTABLE_PRODUCTS_JSON)\s*[\[{].*?[\]}]\s*-->\s*',
+    rf'\s*<!--\s*(?:{_TAGS_GROUP})\s*[\[{{].*?[\]}}]\s*-->\s*',
     re.DOTALL,
 )
 
-# Fallback: bloques que el LLM dejó incompletos (sin cierre -->) o que
-# remark-gfm pudo dañar al convertir "-->" en "⟶". Si el bloque empieza
-# pero nunca cierra, también hay que removerlo para que no quede texto
-# crudo de JSON visible.
 _INTERNAL_JSON_OPEN_NO_CLOSE = re.compile(
-    r'\s*<!--\s*(?:BRAND_JSON|COPY_JSON|LANDING_JSON|PRODUCT_JSON|SELECTABLE_PRODUCTS_JSON)\b[\s\S]*$',
+    rf'\s*<!--\s*(?:{_TAGS_GROUP})\b[\s\S]*$',
     re.DOTALL,
 )
 
@@ -49,15 +53,10 @@ def strip_internal_json(content: str | None) -> str:
     if not content:
         return content or ""
 
-    # Fast path: si no hay ningún marcador, no tocar nada
     if "<!--" not in content:
         return content
 
-    # 1. Bloques bien formados: <!-- XXX_JSON [...] -->
     cleaned = _INTERNAL_JSON_PATTERN.sub("", content)
-
-    # 2. Bloques abiertos sin cierre (LLM truncó o remark-gfm rompió "-->"):
-    #    Si todavía queda un "<!--XXX_JSON" colgando hasta el final, lo cortamos.
     cleaned = _INTERNAL_JSON_OPEN_NO_CLOSE.sub("", cleaned)
 
     return cleaned.rstrip()

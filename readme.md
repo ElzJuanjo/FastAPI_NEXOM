@@ -218,6 +218,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/landing/section_parser.py` | Convierte el texto markdown generado por el agente en secciones estructuradas.      |
 | `app/use_cases/landing/export.py`         | Landing Page → Shopify Liquid & WordPress exporters.                               |
 | `app/use_cases/landing/templates.py`      | Landing Page CSS Templates.                                                         |
+| `app/use_cases/flow/resume.py`            | Reanudar un Flow pausado en selección de productos.                                |
 
 ### Sprint 20 - Branding Builder
 

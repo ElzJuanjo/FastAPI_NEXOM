@@ -107,6 +107,103 @@ class FlowExecute:
         # 5. Ejecutar el Flow
         final_state = await execute_flow(initial_state, progress_emitter=progress_emitter)
 
+        # ── Pausa por selección de productos ────────────────────────────
+        # Si execute_flow detectó un product_search completado con steps
+        # posteriores, el flow queda en estado PAUSED esperando la selección
+        # del usuario. Persistimos el estado parcial en flow.context para que
+        # resume-with-selection pueda reanudar desde ahí.
+        if final_state.get("paused"):
+            # Marcar steps completados como COMPLETED en la BD
+            completed_step_ids = final_state.get("completed_step_ids", [])
+            for step in flow.steps:
+                out = final_state["step_outputs"].get(step.id)
+                if not out:
+                    continue
+                if step.id in completed_step_ids and out["status"] == "completed":
+                    step.status = StepStatus.COMPLETED
+                    step.started_at = step.started_at or flow.started_at
+                    step.completed_at = datetime.now(timezone.utc)
+                    await self._flow_repo.update_step(step)
+
+                    # Crear AgentTask para los steps completados en esta corrida parcial
+                    task = AgentTask(
+                        organization_id=flow.organization_id,
+                        agent_type=step.agent_type,
+                        status=StepStatus.COMPLETED,
+                        flow_step_id=step.id,
+                        input_payload={"step_name": step.name, "agent_type": step.agent_type},
+                        output_payload={"content": out.get("content") or ""},
+                        credits_used=get_credit_cost(step.agent_type),
+                        started_at=flow.started_at,
+                        finished_at=datetime.now(timezone.utc),
+                        duration_ms=out.get("duration_ms", 0),
+                    )
+                    await self._task_repo.create(task)
+
+            # Guardar el estado en flow.context para el resume
+            pending_candidates = final_state.get("pending_candidates", [])
+            pause_step_id = final_state.get("pause_step_id")
+
+            # Serializar step_outputs quitando campos no JSON-safe (bytes, etc.)
+            serialized_outputs = {}
+            for sid, out in final_state["step_outputs"].items():
+                serialized_outputs[sid] = {
+                    k: v for k, v in out.items()
+                    if k not in ("raw_scraped_data",)  # pesado y no necesario para resume
+                }
+
+            flow.status = FlowStatus.PAUSED
+            flow.context = {
+                **(flow.context or {}),
+                "_pending_selection": {
+                    "pause_step_id": pause_step_id,
+                    "candidates": pending_candidates,
+                    "step_outputs": serialized_outputs,
+                    "completed_step_ids": completed_step_ids,
+                    "shared_context": final_state.get("shared_context", {}),
+                    "paused_at": datetime.now(timezone.utc).isoformat(),
+                },
+            }
+            flow.progress_pct = round((len(completed_step_ids) / len(steps_data)) * 100, 1) if steps_data else 0
+            await self._flow_repo.update(flow)
+
+            # Cobrar créditos SOLO de los steps ya completados
+            partial_credits = 0
+            if organization:
+                for step in flow.steps:
+                    if step.id in completed_step_ids:
+                        partial_credits += get_credit_cost(step.agent_type)
+                organization.credits_used_this_month += partial_credits
+
+            return {
+                "flow_id": flow_id,
+                "status": "paused",
+                "paused": True,
+                "pause_reason": "awaiting_product_selection",
+                "pause_step_id": pause_step_id,
+                "candidate_products": pending_candidates,
+                "total_steps": len(steps_data),
+                "completed_steps": len(completed_step_ids),
+                "total_tokens": sum(o.get("tokens_total", 0) for o in final_state["step_outputs"].values()),
+                "total_duration_ms": sum(o.get("duration_ms", 0) for o in final_state["step_outputs"].values()),
+                "credits_consumed": partial_credits,
+                "credits_remaining": max(0, plan.max_credits_per_month - organization.credits_used_this_month) if plan else None,
+                "conversation_id": None,
+                "step_results": {
+                    sid: {
+                        "agent_type": out.get("agent_type"),
+                        "status": out.get("status"),
+                        "content_preview": strip_internal_json((out.get("content") or ""))[:500],
+                        "tokens": out.get("tokens_total", 0),
+                        "duration_ms": out.get("duration_ms", 0),
+                        "error": out.get("error"),
+                        "candidate_products": out.get("candidate_products") or [],
+                    }
+                    for sid, out in final_state["step_outputs"].items()
+                },
+                "error": None,
+            }
+
         # 6. Persistir resultados en la BD
         total_tokens = 0
         total_duration = 0
@@ -218,29 +315,20 @@ class FlowExecute:
                         import logging
                         logging.getLogger(__name__).error(f"Error auto-persisting flow copy assets: {e}")
 
-            # Auto-persist winner products (product_search steps)
+            # Candidate products (product_search): ya NO se autopersiste nada.
+            # Los candidatos quedan disponibles en final_state.pending_candidates
+            # cuando el flow se pausa, o en el content del step (CANDIDATE_PRODUCTS_JSON)
+            # para ser extraídos por el frontend. El usuario los elige explícitamente
+            # vía POST /flows/{id}/resume-with-selection.
             if step.agent_type == "product_search" and output["status"] == "completed":
-                ps_content = output.get("content", "")
-                if ps_content:
-                    try:
-                        from app.use_cases.product.auto_persist import (
-                            auto_persist_winner_products,
-                            extract_selectable_products,
-                        )
-                        session = self._flow_repo._session
-                        raw_scraped = output.get("raw_scraped_data") or {}
-                        created_ids = await auto_persist_winner_products(
-                            session=session,
-                            content=ps_content,
-                            org_id=flow.organization_id,
-                            raw_scraped_data=raw_scraped,
-                        )
-                        # Store in output so conversation meta_data gets them
-                        output["persisted_product_ids"] = created_ids
-                        output["selectable_products"] = extract_selectable_products(ps_content) or []
-                    except Exception as e:
-                        import logging
-                        logging.getLogger(__name__).error(f"Error auto-persisting flow winner products: {e}")
+                ps_content = output.get("content", "") or ""
+                try:
+                    from app.use_cases.product.auto_persist import extract_candidate_products
+                    output["candidate_products"] = extract_candidate_products(ps_content) or []
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"Error extracting candidate products: {e}")
+                    output["candidate_products"] = []
 
             total_tokens += output.get("tokens_total", 0)
             total_duration += output.get("duration_ms", 0)
@@ -312,8 +400,7 @@ class FlowExecute:
                         "images": output.get("images"),
                         "prompt_suggestions": output.get("prompt_suggestions"),
                         "generation_params": output.get("generation_params"),
-                        "persisted_product_ids": output.get("persisted_product_ids"),
-                        "selectable_products": output.get("selectable_products"),
+                        "candidate_products": output.get("candidate_products"),
                     },
                 )
                 session.add(assistant_msg)
@@ -348,8 +435,7 @@ class FlowExecute:
                     "tokens": out.get("tokens_total", 0),
                     "duration_ms": out.get("duration_ms", 0),
                     "error": out.get("error"),
-                    "persisted_product_ids": out.get("persisted_product_ids") or [],
-                    "selectable_products": out.get("selectable_products") or [],
+                    "candidate_products": out.get("candidate_products") or [],
                 }
                 for sid, out in final_state["step_outputs"].items()
             },

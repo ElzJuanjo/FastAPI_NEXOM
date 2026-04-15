@@ -8,7 +8,7 @@ from typing import Optional, Any
 from typing_extensions import TypedDict
 
 
-class FlowExecutionState(TypedDict):
+class FlowExecutionState(TypedDict, total=False):
     """
     Estado mutable que fluye por el grafo de ejecución de un Flow.
 
@@ -22,6 +22,12 @@ class FlowExecutionState(TypedDict):
     - failed_step_id: si un step falló, su ID
     - error: mensaje de error global
     - completed: flag de finalización del Flow completo
+    - paused: flag que indica que el flow se detuvo esperando input del usuario
+        (ej: selección de productos tras product_search)
+    - pause_reason: identificador legible de la razón de pausa
+    - pause_step_id: ID del step tras el cual se pausó la ejecución
+    - pending_candidates: productos candidatos emitidos por el step que pausó
+        (solo aplica para product_search); el usuario los elige y se reanuda.
     """
     flow_id: str
     organization_id: str
@@ -33,3 +39,7 @@ class FlowExecutionState(TypedDict):
     failed_step_id: Optional[str]
     error: Optional[str]
     completed: bool
+    paused: bool
+    pause_reason: Optional[str]
+    pause_step_id: Optional[str]
+    pending_candidates: list[dict]

@@ -48,9 +48,21 @@ def evaluate_product(product: dict) -> dict:
     - passes_filters: bool — cumple todos los criterios mínimos
     - quality_score: puntuación simple 0-100
     """
+    name = (product.get("name") or "").strip()
     cost = _num(product.get("price"), 0)
     suggested = _num(product.get("suggested_price"), 0)
     stock = _num(product.get("stock"), 0)
+
+    # ── Producto inválido / inexistente ──────────────────────────
+    if not name or cost <= 0:
+        return {
+            **product,
+            "margin_cop": 0,
+            "margin_pct": 0,
+            "alerts": ["🚫 Producto no encontrado o datos incompletos (sin nombre o sin precio)"],
+            "passes_filters": False,
+            "quality_score": 0,
+        }
 
     margin = calculate_margin(cost, suggested)
     margin_pct = margin["margin_pct"]

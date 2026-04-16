@@ -88,15 +88,26 @@ async def import_from_dropi(
         )
 
     # ── Extract fields from normalized Dropi product ──
-    name = dropi_product.get("name", f"Dropi #{dropi_id}")[:255]
+    name = (dropi_product.get("name") or "").strip()
+    price_proveedor = float(dropi_product.get("price", 0) or 0)
+
+    # Validación reforzada: la API de Dropi puede retornar un dict con
+    # estructura válida pero datos vacíos para IDs que no existen
+    # (name="", price=0). Eso no es un producto real.
+    if not name or price_proveedor <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Producto Dropi #{dropi_id} no encontrado o sin datos válidos (sin nombre o sin precio)",
+        )
+
+    name = name[:255]
     image_url = dropi_product.get("image_url", "") or None
     stock = dropi_product.get("stock", 0)
     variations = dropi_product.get("variations", [])
     category = dropi_product.get("category", "")
     supplier = dropi_product.get("supplier", "")
 
-    price_proveedor = float(dropi_product.get("price", 0))
-    price_sugerido = float(dropi_product.get("suggested_price", 0)) or price_proveedor
+    price_sugerido = float(dropi_product.get("suggested_price", 0) or 0) or price_proveedor
 
     # USD approximation from suggested price
     price_usd = round(price_sugerido / 4200, 2) if price_sugerido > 0 else None

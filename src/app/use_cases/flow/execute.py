@@ -172,13 +172,14 @@ class FlowExecute:
                     await self._flow_repo.update_step(step)
 
                     # Crear AgentTask para los steps completados en esta corrida parcial
+                    raw_content = out.get("content") or ""
                     task = AgentTask(
                         organization_id=flow.organization_id,
                         agent_type=step.agent_type,
                         status=StepStatus.COMPLETED,
                         flow_step_id=step.id,
                         input_payload={"step_name": step.name, "agent_type": step.agent_type},
-                        output_payload={"content": out.get("content") or ""},
+                        output_payload={"content": strip_internal_json(raw_content)},
                         credits_used=get_credit_cost(step.agent_type),
                         started_at=flow.started_at,
                         finished_at=datetime.now(timezone.utc),
@@ -272,13 +273,16 @@ class FlowExecute:
             await self._flow_repo.update_step(step)
 
             # Crear AgentTask por cada step ejecutado
+            # Sanitizar content para que el usuario no vea bloques internos
+            # (CANDIDATE_PRODUCTS_JSON, BRAND_JSON, etc.) en la vista de actividad.
+            raw_content = output.get("content") or ""
             task = AgentTask(
                 organization_id=flow.organization_id,
                 agent_type=step.agent_type,
                 status=StepStatus.COMPLETED if output["status"] == "completed" else StepStatus.ERROR,
                 flow_step_id=step.id,
                 input_payload={"step_name": step.name, "agent_type": step.agent_type},
-                output_payload={"content": output.get("content") or ""},
+                output_payload={"content": strip_internal_json(raw_content)},
                 error_message=output.get("error"),
                 credits_used=get_credit_cost(step.agent_type) if output["status"] == "completed" else 0,
                 started_at=flow.started_at,

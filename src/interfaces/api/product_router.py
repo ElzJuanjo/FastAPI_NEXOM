@@ -113,18 +113,69 @@ async def import_from_dropi(
     else:
         description = category or name
 
+    # ── Calculate a meaningful score from Dropi data ──
+    # Dropi doesn't have sales/trend/competition data, but we do have margin
+    # and stock which are strong signals. We align with the general scoring
+    # system (scoring.py) using the same component weights where data exists.
+    # Components without data use neutral baselines (same as score_product).
+    from app.agents.scoring import normalize
+
+    # Margin score (weight 0.25 in general scoring) — we HAVE this data
+    margin_score = normalize(margin_pct, 0, 80) if margin_pct > 0 else 0.0
+    margin_has_data = margin_pct > 0
+
+    # Stock as a proxy for demand/availability (maps to sales weight 0.30)
+    # High stock = supplier is confident in demand
+    stock_score = normalize(stock, 0, 2000) if stock > 0 else 0.0
+    stock_has_data = stock > 0
+
+    # Rating, trend, competition: no data from Dropi → neutral baseline
+    rating_score = 50.0
+    trend_score = 50.0
+    competition_score = 50.0
+
+    # Calculate score using real data normalized + neutral baselines
+    # Same formula: (Sales×0.30) + (Margin×0.25) + (Trend×0.20) + (Comp×0.15) + (Rating×0.10)
+    raw_score = (
+        stock_score * 0.30
+        + margin_score * 0.25
+        + trend_score * 0.20
+        + competition_score * 0.15
+        + rating_score * 0.10
+    )
+
+    # If we have real data for at least margin OR stock, apply a mild boost
+    # to avoid the "everything is 50" effect of pure neutral baselines.
+    # This mirrors the v3 blending logic in scoring.py.
+    real_weight = (0.25 if margin_has_data else 0) + (0.30 if stock_has_data else 0)
+    if real_weight >= 0.25:
+        real_sum = (margin_score * 0.25 if margin_has_data else 0) + (stock_score * 0.30 if stock_has_data else 0)
+        normalized_real = real_sum / real_weight if real_weight > 0 else 0
+        blend = min(1.0, real_weight / 0.55 * 0.4 + 0.3)
+        dropi_score = round(min(normalized_real * blend + raw_score * (1 - blend), 100.0), 1)
+    else:
+        dropi_score = round(min(raw_score, 100.0), 1)
+
+    # Bucket classification (aligned with general thresholds)
+    if dropi_score >= 75:
+        dropi_bucket = "winner"
+    elif dropi_score >= 50:
+        dropi_bucket = "potential"
+    else:
+        dropi_bucket = "dropi"  # keep dropi tag for UI differentiation
+
     # ── Build extra_data with SAME structure as auto_persist ──
     # This is what the frontend reads to render the rich product card
     extra_data = {
         "source": "dropi_import",
-        "bucket": "dropi",                # filtro diferenciado en UI
-        "score_total": 0,
+        "bucket": dropi_bucket,
+        "score_total": dropi_score,
         "score_breakdown": {
-            "ventas": 0,
-            "margen": min(margin_pct, 100),
-            "tendencia": 0,
-            "competencia_inv": 0,
-            "rating": 0,
+            "ventas": round(stock_score, 1),
+            "margen": round(margin_score, 1),
+            "tendencia": round(trend_score, 1),
+            "competencia_inv": round(competition_score, 1),
+            "rating": round(rating_score, 1),
         },
         "source_platform": "dropi",
         "source_url": f"https://app.dropi.co/dashboard/product-details/{dropi_id}/{name.lower().replace(' ', '-')}",
@@ -143,6 +194,7 @@ async def import_from_dropi(
         "type": dropi_product.get("type", "SIMPLE"),
         "variations": variations,
         "variations_count": len(variations),
+        "data_coverage": round(real_weight, 2),
     }
 
     product = await use_case.execute(

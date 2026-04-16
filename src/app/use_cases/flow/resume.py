@@ -195,13 +195,15 @@ class FlowResumeWithSelection:
             if is_new:
                 await self._flow_repo.update_step(step)
 
+                # Sanitizar content para AgentTask (no exponer bloques internos en Activity)
+                raw_content = output.get("content") or ""
                 task = AgentTask(
                     organization_id=flow.organization_id,
                     agent_type=step.agent_type,
                     status=StepStatus.COMPLETED if output["status"] == "completed" else StepStatus.ERROR,
                     flow_step_id=step.id,
                     input_payload={"step_name": step.name, "agent_type": step.agent_type},
-                    output_payload={"content": output.get("content") or ""},
+                    output_payload={"content": strip_internal_json(raw_content)},
                     error_message=output.get("error"),
                     credits_used=get_credit_cost(step.agent_type) if output["status"] == "completed" else 0,
                     started_at=flow.started_at,
@@ -209,6 +211,81 @@ class FlowResumeWithSelection:
                     duration_ms=output.get("duration_ms", 0),
                 )
                 await self._task_repo.create(task)
+
+                # ── Auto-persist assets generados en los steps del resume ──
+                # Misma lógica que flow/execute.py para que los assets se creen
+                # sin importar si el flow corrió de un tirón o fue resumido.
+                if output["status"] == "completed":
+                    session = self._flow_repo._session
+
+                    # Persist images as Creatives (image_gen steps)
+                    if step.agent_type == "image_gen":
+                        step_images = output.get("images", [])
+                        if step_images:
+                            try:
+                                from app.use_cases.creative.persist import persist_creative
+                                gen_params = output.get("generation_params") if isinstance(output.get("generation_params"), dict) else {}
+                                for img_url in step_images:
+                                    if isinstance(img_url, str) and img_url:
+                                        await persist_creative(
+                                            session=session,
+                                            base64_image=img_url,
+                                            org_id=flow.organization_id,
+                                            product_id=None,
+                                            style=gen_params.get("style"),
+                                            format=gen_params.get("aspect_ratio"),
+                                            generation_prompt=gen_params.get("prompt"),
+                                        )
+                            except Exception as e:
+                                import logging
+                                logging.getLogger(__name__).error(f"Error persisting resume flow creatives: {e}")
+
+                    # Auto-persist landing page sections
+                    if step.agent_type == "landing_page":
+                        lp_content = raw_content
+                        if lp_content and len(lp_content) > 200:
+                            try:
+                                from app.use_cases.landing.auto_persist import auto_persist_landing_sections
+                                await auto_persist_landing_sections(
+                                    session=session,
+                                    content=lp_content,
+                                    org_id=flow.organization_id,
+                                    brand_id=None,
+                                )
+                            except Exception as e:
+                                import logging
+                                logging.getLogger(__name__).error(f"Error auto-persisting resume flow landing: {e}")
+
+                    # Auto-persist brand identity
+                    if step.agent_type == "branding":
+                        br_content = raw_content
+                        if br_content and len(br_content) > 300:
+                            try:
+                                from app.use_cases.brand.auto_persist import auto_persist_brand_identity
+                                await auto_persist_brand_identity(
+                                    session=session,
+                                    content=br_content,
+                                    org_id=flow.organization_id,
+                                )
+                            except Exception as e:
+                                import logging
+                                logging.getLogger(__name__).error(f"Error auto-persisting resume flow brand: {e}")
+
+                    # Auto-persist copy assets (copywriting and ads)
+                    if step.agent_type in ("copywriting", "ads"):
+                        copy_content = raw_content
+                        if copy_content:
+                            try:
+                                from app.use_cases.copy_asset.auto_persist import auto_persist_copy_assets
+                                await auto_persist_copy_assets(
+                                    session=session,
+                                    content=copy_content,
+                                    org_id=flow.organization_id,
+                                    brand_id=None,
+                                )
+                            except Exception as e:
+                                import logging
+                                logging.getLogger(__name__).error(f"Error auto-persisting resume flow copy assets: {e}")
 
                 total_tokens += output.get("tokens_total", 0)
                 total_duration += output.get("duration_ms", 0)

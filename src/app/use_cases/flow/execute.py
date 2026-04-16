@@ -52,6 +52,52 @@ class FlowExecute:
         if flow.status == FlowStatus.RUNNING:
             raise FlowAlreadyRunningError(f"Flow {flow_id} ya está en ejecución")
 
+        # ── Re-ejecución sobre flow PAUSED ───────────────────────────────
+        # Si el flow quedó pausado esperando selección de productos, NO
+        # reseteamos los steps ni reiniciamos. Devolvemos el estado de pausa
+        # tal cual está persistido en flow.context._pending_selection para
+        # que el frontend rehidrate el modal de selección y el usuario pueda
+        # continuar desde donde lo dejó.
+        if flow.status == FlowStatus.PAUSED:
+            pending = (flow.context or {}).get("_pending_selection") or {}
+            if pending:
+                pause_step_id = pending.get("pause_step_id")
+                pending_candidates = pending.get("candidates") or []
+                completed_step_ids = pending.get("completed_step_ids") or []
+                serialized_outputs = pending.get("step_outputs") or {}
+
+                steps_data_count = len(flow.steps)
+                return {
+                    "flow_id": flow_id,
+                    "status": "paused",
+                    "paused": True,
+                    "pause_reason": "awaiting_product_selection",
+                    "pause_step_id": pause_step_id,
+                    "candidate_products": pending_candidates,
+                    "total_steps": steps_data_count,
+                    "completed_steps": len(completed_step_ids),
+                    "total_tokens": sum(o.get("tokens_total", 0) for o in serialized_outputs.values()),
+                    "total_duration_ms": sum(o.get("duration_ms", 0) for o in serialized_outputs.values()),
+                    "credits_consumed": 0,  # ya cobrados en la corrida original
+                    "credits_remaining": max(0, plan.max_credits_per_month - organization.credits_used_this_month) if plan and organization else None,
+                    "conversation_id": None,
+                    "step_results": {
+                        sid: {
+                            "agent_type": out.get("agent_type"),
+                            "status": out.get("status"),
+                            "content_preview": strip_internal_json((out.get("content") or ""))[:500],
+                            "tokens": out.get("tokens_total", 0),
+                            "duration_ms": out.get("duration_ms", 0),
+                            "error": out.get("error"),
+                            "candidate_products": out.get("candidate_products") or [],
+                        }
+                        for sid, out in serialized_outputs.items()
+                    },
+                    "error": None,
+                }
+            # Si está PAUSED pero perdimos el _pending_selection, lo dejamos
+            # caer al flujo normal de reset (degradación elegante).
+
         # 1.5 Validar cuota de créditos para todo el flow
         if organization and plan:
             agent_types = [step.agent_type for step in flow.steps]

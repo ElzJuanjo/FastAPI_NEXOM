@@ -466,6 +466,33 @@ async def execute_flow(
                 content = product_search_result.get("content", "") or ""
                 candidates = extract_candidate_products(content) or []
 
+                # ── Sin candidatos → no tiene sentido pausar ni continuar ──
+                # Si product_search no devolvió productos, los siguientes
+                # agentes no tendrían sobre qué trabajar. Cortamos el flow
+                # con error claro en vez de pausar para una selección vacía.
+                if not candidates:
+                    state["step_outputs"] = step_outputs
+                    state["shared_context"] = shared_context
+                    state["completed_step_ids"] = completed_ids
+                    state["paused"] = False
+                    state["completed"] = True
+                    state["error"] = (
+                        "product_search no encontró productos candidatos. "
+                        "Los pasos posteriores no se ejecutaron porque no había "
+                        "ningún producto sobre el cual continuar. Ajusta los "
+                        "parámetros de búsqueda (niche, market, audience) y "
+                        "vuelve a ejecutar el flow."
+                    )
+                    if progress_emitter:
+                        await progress_emitter.emit(
+                            stage="step_error",
+                            pct=int(5 + (step_counter / total_steps) * 90),
+                            agent="product_search",
+                            message="No products found — flow stopped",
+                            detail="product_search returned 0 candidates; downstream steps skipped",
+                        )
+                    return state
+
                 state["step_outputs"] = step_outputs
                 state["shared_context"] = shared_context
                 state["completed_step_ids"] = completed_ids

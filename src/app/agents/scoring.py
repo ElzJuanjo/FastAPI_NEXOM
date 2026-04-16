@@ -7,13 +7,36 @@ SCORE_TOTAL = (Ventas × 0.30) + (Margen × 0.25) + (Tendencia × 0.20) + (Compe
 Cada componente se normaliza a escala 0-100 antes de ponderar.
 UMBRAL GANADOR: Score ≥ 75/100
 
-v2: Improved scoring for products with partial data.
-    - Reviews count used as sales proxy when sold_quantity is missing.
-    - Free shipping and seller reputation factored in.
-    - Less penalty for missing margin/trend (these require cross-platform data).
+v3: Weight-normalized scoring for uneven data quality.
+    Cada componente del score tiene una flag `has_data` real (vs valor
+    asumido/neutral). Los componentes SIN datos reales no aportan al
+    score final: ni suman ni restan. Luego el score se re-escala al
+    100% usando SOLO los pesos de los componentes que sí tenían data
+    real.
+
+    Ejemplo: un producto de Google Shopping con ventas + rating reales
+    pero sin margen/tendencia/competencia reales tenía en v2 un score
+    tope de ~72 (porque los tres campos asumidos lo arrastraban a
+    neutral). En v3, el mismo producto con ventas=900 y rating=4.7
+    puede llegar a ~92 si esos son realmente sus números.
+
+    Esto elimina el síntoma "todos empatados en 74" que aparecía cuando
+    el scoring promediaba forzosamente con componentes neutrales.
+
+    Para que la normalización sea estable, se exige un mínimo de peso
+    con datos reales (MIN_WEIGHT_COVERAGE). Si el producto tiene datos
+    en menos que eso, cae al comportamiento legacy (v2) para evitar
+    scores inflados por UN SOLO dato excelente.
 """
 
 from __future__ import annotations
+
+
+# Mínimo de peso ponderado que debe tener datos reales para activar la
+# normalización. 0.40 = al menos el 40% de los componentes (ponderados)
+# deben tener datos confiables. Por debajo, caemos al scoring legacy
+# neutral para no inflar el score con UN solo campo bueno.
+MIN_WEIGHT_COVERAGE = 0.40
 
 
 def _num(value, default: float = 0) -> float:
@@ -52,6 +75,7 @@ def score_product(product: dict) -> dict:
     - score_breakdown: dict con cada componente
     - is_winner: bool (score >= 75)
     - score_label: str (Ganador / Potencial / Descartado)
+    - data_coverage: float 0-1 (proporción de peso con datos reales)
     """
     sales = _num(product.get("monthly_sales"), 0)
     margin = _num(product.get("margin_pct"), 0)
@@ -61,73 +85,115 @@ def score_product(product: dict) -> dict:
     reviews_count = _num(product.get("reviews_count"), 0)
     free_shipping = product.get("free_shipping", False)
 
-    # ── Handle incomplete data gracefully ──
-    
-    # Sales: use reviews as proxy if sold_quantity is 0
-    has_sales_data = sales > 0
-    if not has_sales_data:
-        if reviews_count > 0:
-            # Reviews typically represent 3-8% of total sales
-            # Use conservative estimate: reviews × 5
-            estimated_sales = reviews_count * 5
-            sales_score = normalize(estimated_sales, 0, 1000)
-        else:
-            # No sales data at all — neutral baseline
-            sales_score = 50.0
-    else:
+    # ── Componentes: (score_value, weight, has_real_data) ─────────
+    # has_real_data marca si el scraper nos entregó el dato o si
+    # estamos asumiendo un valor neutral. Solo los que tienen data
+    # real participan en la normalización v3.
+
+    # Sales: real si vino sold_quantity; proxy si reviews>0; falso si nada.
+    if sales > 0:
         sales_score = normalize(sales, 0, 1000)
-
-    # Rating: 0 usually means "not extracted", not "terrible"
-    has_rating_data = rating > 0
-    if not has_rating_data:
-        if reviews_count > 10:
-            # Has reviews but no rating — assume decent (3.8+)
-            rating_score = 70.0
-        else:
-            rating_score = 50.0
+        sales_has_data = True
+    elif reviews_count > 0:
+        # Reviews como proxy conservador (reviews ≈ 3-8% de ventas)
+        estimated_sales = reviews_count * 5
+        sales_score = normalize(estimated_sales, 0, 1000)
+        sales_has_data = True  # reviews SON un dato real
     else:
+        sales_score = 50.0
+        sales_has_data = False
+
+    # Rating
+    if rating > 0:
         rating_score = normalize(rating, 0, 5)
-
-    # Margin: when we don't have cross-platform price comparison,
-    # we can't calculate margin. Use a neutral-positive baseline
-    # instead of 0 (which kills the score unfairly).
-    has_margin_data = margin > 0
-    if not has_margin_data:
-        # Without supplier pricing, assume typical dropshipping margin (~40-50%)
-        # This is neutral — doesn't boost or penalize
-        margin_score = 55.0
+        rating_has_data = True
+    elif reviews_count > 10:
+        # Hay reviews pero no rating → asumimos decente (3.8+)
+        rating_score = 70.0
+        rating_has_data = False  # asumido
     else:
-        margin_score = normalize(margin, 0, 80)  # 0-80% margen
+        rating_score = 50.0
+        rating_has_data = False
 
-    # Trend: without historical data, we can't know growth.
-    # Products with high sales are likely trending already.
-    has_trend_data = trend != 0
-    if not has_trend_data:
-        if sales > 200 or (reviews_count > 50):
-            # High-sales products are likely growing
+    # Margin: requiere precio proveedor vs retail. Raramente disponible.
+    if margin > 0:
+        margin_score = normalize(margin, 0, 80)
+        margin_has_data = True
+    else:
+        margin_score = 55.0  # baseline neutral-positivo
+        margin_has_data = False
+
+    # Trend: requiere histórico. Raramente disponible.
+    if trend != 0:
+        trend_score = normalize(trend, -10, 50)
+        trend_has_data = True
+    else:
+        # High-sales como proxy débil — lo dejamos como señal pero sin
+        # marcarlo como "data real" para no inflar el score
+        if sales > 200 or reviews_count > 50:
             trend_score = 65.0
         else:
             trend_score = 50.0
-    else:
-        trend_score = normalize(trend, -10, 50)  # -10% a +50% MoM
+        trend_has_data = False
 
-    # Competition: default to moderate
+    # Competition: competition_level viene con default 5 del scraper,
+    # casi nunca es un dato real. Lo marcamos como asumido.
     competition_inv = normalize(10 - competition, 0, 10)
+    competition_has_data = False
 
-    # ── Bonus: free shipping indicates established seller ──
+    # ── Bonus: free shipping ─────────────────────────────────────
     shipping_bonus = 3.0 if free_shipping else 0.0
 
-    # Fórmula ponderada
-    score_total = (
+    # ── v3: scoring normalizado al peso disponible ───────────────
+    weights = {
+        "ventas": (sales_score, 0.30, sales_has_data),
+        "margen": (margin_score, 0.25, margin_has_data),
+        "tendencia": (trend_score, 0.20, trend_has_data),
+        "competencia_inv": (competition_inv, 0.15, competition_has_data),
+        "rating": (rating_score, 0.10, rating_has_data),
+    }
+
+    real_weight = sum(w for _, w, has in weights.values() if has)
+
+    # Score legacy (v2): promedio ponderado con TODOS los componentes,
+    # incluyendo los asumidos/neutrales.
+    legacy_score = (
         sales_score * 0.30
         + margin_score * 0.25
         + trend_score * 0.20
         + competition_inv * 0.15
         + rating_score * 0.10
-        + shipping_bonus
     )
 
+    if real_weight >= MIN_WEIGHT_COVERAGE:
+        # Score normalizado (v3): solo componentes con datos reales,
+        # re-escalados al 100%.
+        weighted_sum = sum(
+            score * w
+            for score, w, has in weights.values()
+            if has
+        )
+        normalized_score = weighted_sum / real_weight
+
+        # Blending: cuando la cobertura es baja (cerca del mínimo),
+        # mezclamos con el legacy para que un solo dato excelente no
+        # infle el score de forma agresiva. A mayor cobertura, más
+        # peso tiene la versión normalizada.
+        #
+        #   cobertura 0.40 → 50% normalized + 50% legacy
+        #   cobertura 0.70 → 75% normalized + 25% legacy
+        #   cobertura 1.00 → 100% normalized (equivale a v2 exacto)
+        blend_ratio = min(1.0, (real_weight - MIN_WEIGHT_COVERAGE) / 0.6 * 0.5 + 0.5)
+        score_total = normalized_score * blend_ratio + legacy_score * (1 - blend_ratio)
+    else:
+        # Muy poca data real → usar legacy completo. Evita que UN solo
+        # dato bueno cree un score engañosamente alto.
+        score_total = legacy_score
+
+    score_total += shipping_bonus
+
     score_total = round(min(score_total, 100.0), 1)
+    data_coverage = round(real_weight, 2)
 
     # Clasificación
     if score_total >= 75:
@@ -147,6 +213,7 @@ def score_product(product: dict) -> dict:
             "competencia_inv": round(competition_inv, 1),
             "rating": round(rating_score, 1),
         },
+        "data_coverage": data_coverage,
         "is_winner": score_total >= 75,
         "score_label": label,
     }

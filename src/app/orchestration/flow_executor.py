@@ -2,6 +2,17 @@
 Ejecutor de Flows — corre los steps de un Flow en orden,
 respetando dependencias y soportando ejecución paralela por lote.
 Emite eventos de progreso vía ProgressEmitter si está disponible.
+
+Imágenes de referencia:
+    El router (flow_execute_router) coloca la imagen del usuario en
+    `shared_context["input_images"]` y/o `shared_context["reference_image_url"]`.
+    Aquí la resolvemos A base64 UNA sola vez antes del primer step y
+    analizamos su contenido con un vision model, dejando el resultado
+    cacheado en `shared_context["_image_analysis"]` para que todos los
+    steps lo reutilicen sin re-descargar ni re-analizar. De esta forma
+    los agentes del flow se comportan igual que los del chat: reciben
+    la imagen en base64 como contenido multimodal Y un hint textual
+    con lo que la imagen representa. Nada se persiste a S3.
 """
 
 from __future__ import annotations
@@ -12,45 +23,22 @@ from datetime import datetime, timezone
 from app.agents.agent_registry import get_agent
 from .flow_state import FlowExecutionState
 from .flow_planner import build_execution_batches, get_step_context
+from .image_context import (
+    resolve_images_to_base64,
+    analyze_image,
+    build_image_hint_for_agent,
+)
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-async def _resolve_flow_images_to_base64(image_urls: list[str]) -> list[str]:
-    """
-    Resolve image URLs (S3, CDN, etc.) to base64 data URIs for flow steps.
-
-    In chat mode, executor_node._resolve_images_to_base64() handles this.
-    In flow mode, this function does the equivalent work so agents receive
-    usable base64 images instead of raw URLs that may fail to download
-    inside the agent (private S3 buckets, CORS restrictions, etc.).
-    """
-    if not image_urls:
-        return []
-
-    from infra.tools.openrouter_client import openrouter_client
-
-    resolved = []
-    for url in image_urls:
-        if not url:
-            continue
-        # Already base64 — pass through
-        if url.startswith("data:"):
-            resolved.append(url)
-            continue
-        # URL — download and convert
-        try:
-            b64 = await openrouter_client._download_image_as_base64(url)
-            if b64:
-                resolved.append(b64)
-                logger.info(f"Flow image resolved to base64: {url[:80]}...")
-            else:
-                logger.warning(f"Flow image resolution failed (returned None): {url[:80]}")
-        except Exception as e:
-            logger.warning(f"Flow image resolution error: {e} for {url[:80]}")
-
-    return resolved
+# Agents that benefit from receiving the reference image (as multimodal
+# input) and/or a textual hint about its content.
+IMAGE_AWARE_AGENTS = {
+    "image_gen", "product_search", "branding",
+    "copywriting", "ads", "landing_page",
+}
 
 
 async def execute_single_step(
@@ -94,22 +82,27 @@ async def execute_single_step(
     try:
         context = get_step_context(step, step_outputs, shared_context)
 
-        # ── Resolve image URLs to base64 for agents that need them ──
-        # In chat mode, executor_node does this. In flow mode, we must do
-        # it here so agents (especially image_gen) receive usable base64
-        # data instead of raw S3 URLs that may fail to download later.
-        raw_images = context.get("input_images") or []
-        if raw_images and agent_type in ("image_gen", "product_search", "branding", "copywriting", "ads", "landing_page"):
-            resolved_images = await _resolve_flow_images_to_base64(raw_images)
-            if resolved_images:
-                context["input_images"] = resolved_images
-                # Also set reference_image_url to the resolved base64 so
-                # image_gen_agent picks it up directly without re-downloading
-                if agent_type == "image_gen":
-                    context["reference_image_url"] = resolved_images[0]
-                logger.info(f"Flow step {step_id}: resolved {len(resolved_images)}/{len(raw_images)} images to base64")
+        # ── Inyectar imágenes de referencia ya resueltas al contexto ─────
+        # El flow las resolvió a base64 UNA sola vez en `prepare_flow_images`
+        # y las dejó en shared_context["_resolved_input_images"]. Aquí solo
+        # las propagamos al context del step para agentes que las aprovechan.
+        # También pasamos el análisis cacheado para que el base_agent pueda
+        # inyectarlas como contenido multimodal.
+        resolved_images = shared_context.get("_resolved_input_images") or []
+        if resolved_images and agent_type in IMAGE_AWARE_AGENTS:
+            context["input_images"] = resolved_images
+            # image_gen lee `reference_image_url` — lo seteamos al primer
+            # base64 para que use esa imagen como referencia directa sin
+            # volver a descargar nada.
+            if agent_type == "image_gen":
+                context["reference_image_url"] = resolved_images[0]
+            logger.info(
+                f"Flow step {step_id} ({agent_type}): attached "
+                f"{len(resolved_images)} resolved reference image(s)"
+            )
 
-        # Build a meaningful input from the flow context
+        # Build a meaningful input from the flow context (incluye hint
+        # textual de la imagen cuando hay análisis cacheado).
         user_input = _build_step_input(step, context)
 
         result = await agent.execute(
@@ -248,6 +241,11 @@ def _build_step_input(step: dict, context: dict) -> str:
     `selected_products` en el contexto y se usa ESE subset en vez del dump
     completo del agente. Esto asegura que los steps posteriores (image_gen,
     ads, copywriting, etc.) solo trabajen con los productos que el usuario eligió.
+
+    Si el flow arrancó con una imagen de referencia, el análisis cacheado
+    en `_image_analysis` se inyecta como hint textual adaptado al agente —
+    mismo comportamiento que el chat cuando el input es vago (ver
+    executor_node._build_enriched_input).
     """
     step_name = step.get("name", "")
     agent_type = step.get("agent_type", "")
@@ -280,6 +278,42 @@ def _build_step_input(step: dict, context: dict) -> str:
             winner_name = _extract_top_product_name(prev_output)
             if winner_name:
                 product = winner_name
+
+    # ── Hint textual de la imagen de referencia (si la hay) ──
+    # El análisis se cachea una sola vez al inicio del flow. Solo lo
+    # inyectamos en steps que saben aprovecharlo Y cuando el usuario no
+    # ya especificó un `product` explícito (para no duplicar/contradecir).
+    image_hint = ""
+    analysis = context.get("_image_analysis") or {}
+    if analysis and agent_type in (
+        "product_search", "image_gen", "branding",
+        "copywriting", "ads", "landing_page",
+    ):
+        # Si el flow ya pasó por product_search y hay seleccionados, el
+        # producto del user-pick domina sobre el hint de la imagen.
+        if not (selected_products and prev_agent == "product_search"):
+            image_hint = build_image_hint_for_agent(analysis, agent_type)
+            # Promover product_name del análisis a `product` si el usuario
+            # no lo especificó y el step lo necesita.
+            if not product and analysis.get("product_name"):
+                product = analysis["product_name"]
+
+    # ── product_search con imagen: la query de scraping DEBE ser el
+    # search_query concreto extraído de la foto, NO la instrucción
+    # genérica ("Search for winning products in the e-commerce niche...").
+    # Los scrapers (MercadoLibre, Google Shopping, AliExpress, etc.) usan
+    # user_input LITERAL como término de búsqueda. Si entra la instrucción
+    # genérica, se termina scrapeando "winning products e-commerce LATAM"
+    # y devolviendo resultados sin relación con la foto. El chat lo
+    # resuelve en executor_node._build_enriched_input: antepone el
+    # search_query de la imagen al input. Aquí replicamos ese mismo
+    # contrato en modo flow.
+    search_query_override = ""
+    if agent_type == "product_search" and analysis:
+        search_query_override = (analysis.get("search_query") or "").strip()
+        # Si search_query vino vacío pero tenemos product_name, úsalo.
+        if not search_query_override and analysis.get("product_name"):
+            search_query_override = analysis["product_name"].strip()
 
     # Build contextual input
     parts = []
@@ -314,6 +348,62 @@ def _build_step_input(step: dict, context: dict) -> str:
 
     instruction = instructions.get(agent_type, f"Execute task: {step_name}")
 
+    # ── DATA-DRIVEN AGENTS (product_search, dropi_connector) ─────────
+    # Estos agentes usan `user_input` COMO STRING LITERAL para buscar en
+    # APIs externas (MercadoLibre, Google Shopping, AliExpress, Dropi…).
+    # Cualquier palabra extra contamina el ranking orgánico y produce
+    # resultados distintos (o basura) vs el chat.
+    #
+    # Rama A — con imagen de referencia (solo product_search hoy):
+    #   Devolvemos el mismo formato que `executor_node._build_enriched_input`:
+    #
+    #       {search_query}
+    #
+    #       [User request: {step_name or generic}]
+    #       [Product identified from image: {product_name}. {description}]
+    #
+    # Rama B — sin imagen: usamos `product` o `niche` del context del
+    #   flow como query directa. Fallback a instrucción legacy solo
+    #   cuando no hay ninguna pista útil.
+    #
+    # El contexto del flow (brand, niche, market, audience, tone) NO se
+    # embebe en el user_input — viaja por separado en el dict `context`,
+    # que cada agente.build_messages convierte en un bloque "Contexto"
+    # para el LLM. Así la API externa recibe solo el query limpio y el
+    # LLM recibe todo el contexto. Paridad 1:1 con chat.
+    DATA_DRIVEN_AGENTS = {"product_search", "dropi_connector"}
+
+    if agent_type in DATA_DRIVEN_AGENTS:
+        # Rama A: imagen disponible (solo product_search la aprovecha hoy,
+        # pero el código es agnóstico — si mañana dropi soporta búsqueda
+        # por imagen, ya estará listo).
+        if search_query_override:
+            user_friendly_task = step_name or "Search products related to this image"
+            product_name_from_img = (analysis or {}).get("product_name", "").strip()
+            description = (analysis or {}).get("description", "").strip()
+            chat_compatible_input = search_query_override
+            chat_compatible_input += f"\n\n[User request: {user_friendly_task}]"
+            if product_name_from_img or description:
+                chat_compatible_input += (
+                    f"\n[Product identified from image: "
+                    f"{product_name_from_img}. {description}]"
+                )
+            return chat_compatible_input
+
+        # Rama B: sin imagen — usar la pista más específica disponible
+        # (product > niche) como query directa de la API externa.
+        clean_query = (product or niche or "").strip()
+        if clean_query:
+            return clean_query
+        # Último fallback: instrucción legacy (no rompe flows viejos)
+
+    # Helper to stitch the image hint into the final prompt. Placed in a
+    # dedicated block so the agent sees it clearly.
+    def _attach_image_hint(base: str) -> str:
+        if not image_hint:
+            return base
+        return f"{base}\n\n[Reference image]\n{image_hint}"
+
     # ── Si hay selected_products, reemplazamos el dump de prev_output por
     # un resumen compacto de los productos elegidos (más focalizado y ahorra
     # tokens frente a los ~1500 chars del content completo del agente) ──
@@ -330,19 +420,23 @@ def _build_step_input(step: dict, context: dict) -> str:
                 f"{i}. {name} | score {score} | {platform} | ~${price} USD"
             )
         selected_summary = "\n".join(lines)
-        return f"{instruction}\n\n{context_block}\n\n{selected_summary}"
+        return _attach_image_hint(
+            f"{instruction}\n\n{context_block}\n\n{selected_summary}"
+        )
 
     # Combine everything (comportamiento legacy cuando no hubo selección)
     if prev_output and prev_agent:
         # For image_gen after product_search, don't dump the table — the product name is already in the instruction
         if agent_type == "image_gen" and prev_agent == "product_search":
-            return f"{instruction}\n\n{context_block}"
+            return _attach_image_hint(f"{instruction}\n\n{context_block}")
         prev_summary = prev_output[:1500]
-        return f"{instruction}\n\n{context_block}\n\nPrevious step ({prev_agent}) provided:\n{prev_summary}"
+        return _attach_image_hint(
+            f"{instruction}\n\n{context_block}\n\nPrevious step ({prev_agent}) provided:\n{prev_summary}"
+        )
     elif context_block:
-        return f"{instruction}\n\n{context_block}"
+        return _attach_image_hint(f"{instruction}\n\n{context_block}")
     else:
-        return instruction
+        return _attach_image_hint(instruction)
     
     
 def _extract_top_product_name(content: str) -> str:
@@ -378,6 +472,64 @@ def _extract_top_product_name(content: str) -> str:
     return ""
 
 
+async def _prepare_flow_images(shared_context: dict) -> None:
+    """
+    One-shot preparation of reference images at the start of a flow run.
+
+    Reads `reference_image_url` and/or `input_images` from shared_context,
+    resolves each URL to a base64 data URI, analyzes the first image with
+    a vision model to extract a product hint, and caches both in
+    shared_context under stable keys:
+
+        _resolved_input_images : list[str]  (base64 data URIs)
+        _image_analysis        : dict       (search_query/product_name/...)
+
+    Idempotent: if the cache keys are already populated (e.g. on resume
+    after a selection pause), this is a no-op. Errors are swallowed — the
+    flow continues without the reference rather than failing outright.
+    """
+    # Skip if already prepared (resume path).
+    if shared_context.get("_resolved_input_images") is not None:
+        return
+
+    # Collect candidate URLs from both inputs the router populates.
+    candidates: list[str] = []
+    ref = shared_context.get("reference_image_url")
+    if isinstance(ref, str) and ref:
+        candidates.append(ref)
+
+    input_imgs = shared_context.get("input_images") or []
+    if isinstance(input_imgs, list):
+        for u in input_imgs:
+            if isinstance(u, str) and u and u not in candidates:
+                candidates.append(u)
+
+    if not candidates:
+        # Mark as "processed, nothing found" so we don't retry per-batch.
+        shared_context["_resolved_input_images"] = []
+        shared_context["_image_analysis"] = {}
+        return
+
+    resolved = await resolve_images_to_base64(candidates)
+    shared_context["_resolved_input_images"] = resolved
+
+    # Analyze only the first image — matches chat behavior and is cheap.
+    analysis: dict = {}
+    if resolved:
+        try:
+            analysis = await analyze_image(resolved[0]) or {}
+        except Exception as e:
+            logger.warning(f"Flow image analysis failed (continuing without hint): {e}")
+            analysis = {}
+    shared_context["_image_analysis"] = analysis
+
+    if resolved:
+        logger.info(
+            f"Flow images prepared: {len(resolved)} base64 image(s), "
+            f"analysis={'yes' if analysis else 'no'}"
+        )
+
+
 async def execute_flow(
     state: FlowExecutionState,
     progress_emitter=None,
@@ -404,6 +556,12 @@ async def execute_flow(
     step_outputs = dict(state.get("step_outputs", {}))
     shared_context = dict(state.get("shared_context", {}))
     completed_ids = list(state.get("completed_step_ids", []))
+
+    # ── Preparar imágenes de referencia una sola vez ─────────────────
+    # Resuelve URLs → base64 y analiza con vision model. Todo cacheado
+    # en shared_context para que ningún step tenga que re-descargar ni
+    # re-analizar. Idempotente en paths de resume.
+    await _prepare_flow_images(shared_context)
 
     # Si es un resume, filtramos los steps que ya se ejecutaron previamente.
     # Los steps con ID en completed_ids se skippean del batching.

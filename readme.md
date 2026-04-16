@@ -219,6 +219,7 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/landing/export.py`         | Landing Page → Shopify Liquid & WordPress exporters.                               |
 | `app/use_cases/landing/templates.py`      | Landing Page CSS Templates.                                                         |
 | `app/use_cases/flow/resume.py`            | Reanudar un Flow pausado en selección de productos.                                |
+| `app/orchestration/image_context.py`      | Shared helpers for resolving input images.                                          |
 
 ### Sprint 20 - Branding Builder
 

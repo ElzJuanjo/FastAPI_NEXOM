@@ -512,7 +512,7 @@ async def _finalize_batch(
         task_status = "error"
         task_error = f"All {total_images} images failed"
     elif new_failed > 0:
-        task_status = "partial"
+        task_status = "completed"
         task_error = f"{new_failed} of {total_images} images failed"
     else:
         task_status = "completed"

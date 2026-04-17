@@ -795,6 +795,7 @@ def render_section(section, theme: Theme) -> str:
         "faq": _render_faq,
         "cta": _render_cta,
         "product_gallery": _render_product_gallery,
+        "gallery": _render_gallery_carousel,
         "specs": _render_specs,
         "video_embed": _render_video_embed,
         "comparison": _render_comparison,
@@ -1317,6 +1318,65 @@ def _lighten(hex_color: str, amount: float = 0.2) -> str:
         return f"#{r:02x}{g:02x}{b:02x}"
     except (ValueError, IndexError):
         return hex_color
+
+
+def _render_gallery_carousel(section, theme: Theme) -> str:
+    """Renderiza una galería de creativos como carrusel horizontal con controles."""
+    title = _extract_title(section, fallback_generic="Galería")
+    images = section.images or []
+    if section.image_url and section.image_url not in images:
+        images = [section.image_url] + images
+
+    if not images:
+        return f"""<section class="gallery-carousel-section">
+  <div class="container">
+    <h2 class="gallery-carousel-title">{_e(title)}</h2>
+    <p style="text-align:center;color:var(--tx-muted);padding:60px 0">🖼 Agrega creativos a esta galería</p>
+  </div>
+</section>"""
+
+    uid = f"gc{id(section)}"
+    slides_html = ""
+    dots_html = ""
+    for i, img in enumerate(images):
+        active = " active" if i == 0 else ""
+        slides_html += f'<div class="gc-slide{active}" data-index="{i}"><img src="{_e(img)}" alt="Creative {i + 1}" loading="lazy"></div>\n'
+        dots_html += f'<button class="gc-dot{active}" data-index="{i}" aria-label="Slide {i + 1}"></button>\n'
+
+    return f"""<section class="gallery-carousel-section">
+  <div class="container">
+    <h2 class="gallery-carousel-title">{_e(title)}</h2>
+    <div class="gc-wrapper" id="{uid}">
+      <div class="gc-track">
+        {slides_html}
+      </div>
+      <button class="gc-arrow gc-prev" aria-label="Previous">&#8249;</button>
+      <button class="gc-arrow gc-next" aria-label="Next">&#8250;</button>
+      <div class="gc-dots">
+        {dots_html}
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){{
+    var w=document.getElementById('{uid}');if(!w)return;
+    var slides=w.querySelectorAll('.gc-slide'),
+        dots=w.querySelectorAll('.gc-dot'),
+        cur=0,total=slides.length;
+    function go(n){{
+      cur=((n%total)+total)%total;
+      slides.forEach(function(s,i){{s.classList.toggle('active',i===cur)}});
+      dots.forEach(function(d,i){{d.classList.toggle('active',i===cur)}});
+    }}
+    w.querySelector('.gc-prev').onclick=function(){{go(cur-1)}};
+    w.querySelector('.gc-next').onclick=function(){{go(cur+1)}};
+    dots.forEach(function(d){{d.onclick=function(){{go(+d.dataset.index)}}}});
+    var t=setInterval(function(){{go(cur+1)}},5000);
+    w.onmouseenter=function(){{clearInterval(t)}};
+    w.onmouseleave=function(){{t=setInterval(function(){{go(cur+1)}},5000)}};
+  }})();
+  </script>
+</section>"""
 
 
 def _render_product_gallery(section, theme: Theme) -> str:

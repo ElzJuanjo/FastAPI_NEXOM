@@ -11,13 +11,12 @@ CREDIT_COSTS: dict[str, int] = {
     "dropi_connector": 2,
 
     # Gemini Flash
-    "product_search": 4,
+    "product_search": 7,
     "ads": 4,
     "conversion_opt": 4,
 
     # Gemini Pro
     "landing_page": 14,
-    "store_dev": 14,
 
     # Image generation
     "image_gen": 15,

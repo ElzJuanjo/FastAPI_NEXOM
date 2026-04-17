@@ -1,8 +1,8 @@
-"""templates landing
+"""delete store_dev agent
 
-Revision ID: 2368fa3000ed
+Revision ID: ce5b10497aed
 Revises: 
-Create Date: 2026-04-12 17:13:55.371921
+Create Date: 2026-04-17 12:26:08.541280
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '2368fa3000ed'
+revision: str = 'ce5b10497aed'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -202,7 +202,7 @@ def upgrade() -> None:
     op.create_index('ix_conv_messages_conv_created', 'conversation_messages', ['conversation_id', 'created_at'], unique=False)
     op.create_table('flow_steps',
     sa.Column('flow_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
+    sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('order', sa.Integer(), nullable=False),
     sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'ERROR', 'SKIPPED', name='stepstatus'), nullable=False),
@@ -264,7 +264,7 @@ def upgrade() -> None:
     op.create_index('ix_products_org_id', 'products', ['organization_id'], unique=False)
     op.create_table('agent_tasks',
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
+    sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
     sa.Column('flow_step_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'ERROR', 'SKIPPED', name='stepstatus'), nullable=False),
     sa.Column('input_payload', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -354,7 +354,7 @@ def upgrade() -> None:
     op.create_table('creatives',
     sa.Column('product_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('organization_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'STORE_DEV', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
+    sa.Column('agent_type', sa.Enum('GENERAL_ASSISTANT', 'PRODUCT_SEARCH', 'DROPI_CONNECTOR', 'LANDING_PAGE', 'IMAGE_GEN', 'VIDEO_GEN', 'ADS', 'BRANDING', 'COPYWRITING', 'CONVERSION_OPT', name='agenttype'), nullable=False),
     sa.Column('status', sa.Enum('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', name='assetstatus'), nullable=False),
     sa.Column('generation_prompt', sa.Text(), nullable=True),
     sa.Column('generation_params', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='angle, model, aspect_ratio, etc.'),

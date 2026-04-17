@@ -191,7 +191,7 @@ def build_image_hint_for_agent(analysis: dict, agent_type: str) -> str:
             bits.append(f"Visual cues: {description}")
         return "\n".join(bits)
 
-    # general fallback (store_dev, conversion_opt, dropi_connector, etc.)
+    # general fallback (conversion_opt, dropi_connector, etc.)
     bits = []
     if product_name:
         bits.append(f"Reference image shows: {product_name}")

@@ -79,7 +79,7 @@ def _build_enriched_input(original_input: str, analysis: dict, agent_type: str) 
         return f"{original_input}\n\n[Reference product from image: {product_name}. {description}]"
 
     else:
-        # General assistant, conversion_opt, store_dev, dropi, etc.
+        # General assistant, conversion_opt, dropi, etc.
         return f"{original_input}\n\n[Image analysis: {product_name}. {description}]"
 
 

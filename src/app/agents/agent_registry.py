@@ -12,7 +12,6 @@ from .branding_agent import BrandingAgent
 from .copywriting_agent import CopywritingAgent
 from .ads_agent import AdsAgent
 from .landing_page_agent import LandingPageAgent
-from .store_dev_agent import StoreDevAgent
 from .image_gen_agent import ImageGenAgent
 from .conversion_opt_agent import ConversionOptAgent
 
@@ -25,7 +24,6 @@ _AGENT_MAP: dict[str, BaseAgent] = {
     "copywriting": CopywritingAgent(openrouter_client),
     "ads": AdsAgent(openrouter_client),
     "landing_page": LandingPageAgent(openrouter_client),
-    "store_dev": StoreDevAgent(openrouter_client),
     "image_gen": ImageGenAgent(openrouter_client),
     "conversion_opt": ConversionOptAgent(openrouter_client),
 }

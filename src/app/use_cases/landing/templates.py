@@ -209,7 +209,22 @@ def _css_shared_components(P, S, A, BG, TX, HF, BF, P_light, _rgba):
 .story-layout{{max-width:900px;margin:0 auto}}
 .story-layout.with-image{{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;max-width:1100px}}
 .story-content p{{color:var(--tx-secondary);line-height:1.85;margin-bottom:16px}}
-.story-image img{{width:100%;border-radius:var(--r-lg);object-fit:cover}}"""
+.story-image img{{width:100%;border-radius:var(--r-lg);object-fit:cover}}
+/* ── Gallery Carousel ── */
+.gallery-carousel-section{{padding:80px 0}}
+.gallery-carousel-title{{text-align:center;font-size:clamp(1.5rem,3vw,2.2rem);margin-bottom:40px}}
+.gc-wrapper{{position:relative;max-width:900px;margin:0 auto;overflow:hidden;border-radius:var(--r-lg)}}
+.gc-track{{position:relative;width:100%;aspect-ratio:16/9;background:var(--bg-alt);border-radius:var(--r-lg);overflow:hidden}}
+.gc-slide{{position:absolute;inset:0;opacity:0;transition:opacity .5s ease;pointer-events:none}}
+.gc-slide.active{{opacity:1;pointer-events:auto}}
+.gc-slide img{{width:100%;height:100%;object-fit:cover;display:block}}
+.gc-arrow{{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;font-size:1.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;transition:background .2s,transform .2s}}
+.gc-arrow:hover{{background:var(--p);transform:translateY(-50%) scale(1.1)}}
+.gc-prev{{left:16px}}
+.gc-next{{right:16px}}
+.gc-dots{{display:flex;justify-content:center;gap:8px;margin-top:16px}}
+.gc-dot{{width:10px;height:10px;border-radius:50%;border:2px solid var(--bd);background:transparent;cursor:pointer;padding:0;transition:all .2s}}
+.gc-dot.active{{background:var(--p);border-color:var(--p);transform:scale(1.2)}}"""
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -221,7 +236,10 @@ _SHARED_RESPONSIVE = """\
   .story-layout.with-image{grid-template-columns:1fr}
   .trust-badges-grid{gap:24px}
   .countdown-timer{gap:4px}
-  .timer-num{font-size:1.8rem;padding:8px 14px;min-width:56px}"""
+  .timer-num{font-size:1.8rem;padding:8px 14px;min-width:56px}
+  .gc-arrow{width:36px;height:36px;font-size:1.3rem}
+  .gc-prev{left:8px}
+  .gc-next{right:8px}"""
 
 
 # ═══════════════════════════════════════════════════════════════════

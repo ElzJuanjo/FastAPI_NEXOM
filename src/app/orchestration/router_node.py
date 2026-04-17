@@ -26,7 +26,6 @@ AVAILABLE AGENTS:
 - ads: Create ad campaigns for Meta Ads, Google Ads, TikTok Ads.
 - landing_page: Design and generate high-conversion sales landing pages.
 - image_gen: Generate product images, visual creatives for ads.
-- store_dev: Develop and configure online stores.
 - conversion_opt: Analyze conversion metrics and recommend optimizations (AOV, CLTV, CRO, funnel).
 
 DECISION RULES (in strict priority order):
@@ -37,7 +36,6 @@ DECISION RULES (in strict priority order):
    - Option mentions copy/headlines/descriptions/emails/textos/anuncios escritos → copywriting
    - Option mentions ads/campaign/Meta Ads/Google Ads/TikTok/creativos para ads → ads
    - Option mentions landing page/página de venta/conversión alta → landing_page
-   - Option mentions store/tienda/Shopify/Dropi integration/configurar → store_dev
    - Option mentions brand/marca/identidad/brand book/logo/colores → branding
    - Option mentions image/imagen/foto/creativo visual/imágenes → image_gen
    - Option mentions product search/productos ganadores/búsqueda/mercado/nicho → product_search
@@ -54,7 +52,6 @@ DECISION RULES (in strict priority order):
    - Write copy / texts / email / headlines → copywriting
    - Ad campaign / Meta Ads / Google Ads / budget → ads
    - Landing page / sales page → landing_page
-   - Configure store / online store → store_dev
    - Conversion analysis / metrics / AOV / funnel → conversion_opt
    - Search products / market / niche / winning products → product_search
 

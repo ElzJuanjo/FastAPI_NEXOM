@@ -83,7 +83,6 @@ class AgentType(str, enum.Enum):
     GENERAL_ASSISTANT = "general_assistant"
     PRODUCT_SEARCH = "product_search"
     DROPI_CONNECTOR = "dropi_connector"
-    STORE_DEV = "store_dev"
     LANDING_PAGE = "landing_page"
     IMAGE_GEN = "image_gen"
     VIDEO_GEN = "video_gen"

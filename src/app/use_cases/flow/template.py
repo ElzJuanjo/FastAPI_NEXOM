@@ -59,15 +59,9 @@ FULL_CYCLE_STEPS = [
     },
     {
         "order": 8,
-        "agent_type": "store_dev",
-        "name": "Configuración de Tienda",
-        "depends_on": 7,  # necesita landing
-    },
-    {
-        "order": 9,
         "agent_type": "conversion_opt",
         "name": "Optimización de Conversión",
-        "depends_on": 8,
+        "depends_on": 7,
     },
 ]
 

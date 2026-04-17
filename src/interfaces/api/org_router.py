@@ -206,7 +206,7 @@ async def get_my_org_usage(
             "full_cycle_cost": estimate_flow_credits([
                 "product_search", "dropi_connector", "branding",
                 "copywriting", "image_gen", "ads",
-                "landing_page", "store_dev", "conversion_opt",
+                "landing_page", "conversion_opt",
             ]),
             "branding_launch_cost": estimate_flow_credits([
                 "branding", "copywriting", "image_gen", "landing_page",

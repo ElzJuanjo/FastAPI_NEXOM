@@ -342,7 +342,6 @@ def _build_step_input(step: dict, context: dict) -> str:
         "image_gen": f"Generate professional product images for '{product or brand or 'the product'}' in a commercial-ready style suitable for e-commerce and social media ads.",
         "ads": f"Create complete ad campaigns for '{brand or product}' targeting {audience or 'the ideal customer'}. Include Meta Ads and Google Ads structures with copy, targeting, and budget recommendations.",
         "landing_page": f"Design a high-conversion landing page for '{brand or product}'. Include hero section, benefits, social proof, FAQ, and CTA sections.",
-        "store_dev": f"Configure and recommend the optimal online store setup for '{brand or product}' in the {market or 'LATAM'} market. Include platform, payment gateways, shipping, and technical SEO.",
         "conversion_opt": f"Analyze and recommend conversion optimizations for '{brand or product}'. Include AOV strategies, funnel optimization, CRO recommendations, and tracking setup.",
     }
 

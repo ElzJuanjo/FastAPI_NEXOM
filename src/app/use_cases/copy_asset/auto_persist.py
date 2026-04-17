@@ -114,8 +114,23 @@ async def auto_persist_copy_assets(
     if not items:
         return []
 
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError, count_resources, RESOURCE_LIMITS
+    try:
+        await check_resource_limit(session, org_id, "copy_assets")
+    except ResourceLimitExceededError:
+        logger.warning(
+            f"Copy asset auto-persist skipped for org {org_id}: resource limit reached"
+        )
+        return []
+
+    # Calcular cuántos podemos crear sin exceder el límite
+    current_count = await count_resources(session, org_id, "copy_assets")
+    limit = RESOURCE_LIMITS.get("copy_assets", 500)
+    available_slots = max(0, limit - current_count)
+
     created_ids = []
-    for item in items[:20]:  # max 20 assets per response
+    for item in items[:min(20, available_slots)]:  # max 20 assets per response, capped by available slots
         normalized = _normalize_asset(item)
         if not normalized:
             continue

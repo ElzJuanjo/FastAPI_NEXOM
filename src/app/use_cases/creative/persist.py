@@ -32,6 +32,16 @@ async def persist_creative(
     Sube una imagen base64 a S3 y crea un Creative en la BD.
     Si base64_image ya es una URL http, solo crea el registro.
     """
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "creatives")
+    except ResourceLimitExceededError:
+        logger.warning(
+            f"Creative persist skipped for org {org_id}: resource limit reached"
+        )
+        raise
+
     # Si ya es URL, no re-subir, pero extraer s3_key
     if base64_image.startswith("http"):
         s3_key = None
@@ -75,7 +85,7 @@ async def persist_creative(
         angle=angle,
         status=AssetStatus.APPROVED,
         file_url=s3_result["url"],
-        s3_key=s3_result["key"],  # ← agregar
+        s3_key=s3_result["key"],
         file_size_bytes=s3_result["size_bytes"],
         generation_prompt=generation_prompt,
         generation_params=generation_params or {},
@@ -96,9 +106,21 @@ async def persist_multiple_creatives(
     Persiste múltiples imágenes como Creatives.
     Normaliza el campo 'image' que puede venir como string base64, URL, o dict de OpenAI vision.
     """
+    # ── Pre-check: cuántos slots disponibles ──
+    from app.use_cases.resource_limits import count_resources, RESOURCE_LIMITS
+    current_count = await count_resources(session, org_id, "creatives")
+    limit = RESOURCE_LIMITS.get("creatives", 300)
+    available_slots = max(0, limit - current_count)
+
+    if available_slots == 0:
+        logger.warning(
+            f"Creative batch persist skipped for org {org_id}: resource limit reached ({current_count}/{limit})"
+        )
+        return []
+
     creatives = []
 
-    for item in images:
+    for item in images[:available_slots]:  # Cap by available slots
         raw_image = item.get("image")
         if not raw_image:
             continue

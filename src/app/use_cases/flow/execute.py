@@ -173,6 +173,9 @@ class FlowExecute:
 
                     # Crear AgentTask para los steps completados en esta corrida parcial
                     raw_content = out.get("content") or ""
+                    # ── Auto-rotate old agent tasks if near limit ──
+                    from app.use_cases.resource_limits import cleanup_if_needed
+                    await cleanup_if_needed(self._flow_repo._session, flow.organization_id, "agent_tasks")
                     task = AgentTask(
                         organization_id=flow.organization_id,
                         agent_type=step.agent_type,
@@ -276,6 +279,9 @@ class FlowExecute:
             # Sanitizar content para que el usuario no vea bloques internos
             # (CANDIDATE_PRODUCTS_JSON, BRAND_JSON, etc.) en la vista de actividad.
             raw_content = output.get("content") or ""
+            # ── Auto-rotate old agent tasks if near limit ──
+            from app.use_cases.resource_limits import cleanup_if_needed as cleanup_at
+            await cleanup_at(self._flow_repo._session, flow.organization_id, "agent_tasks")
             task = AgentTask(
                 organization_id=flow.organization_id,
                 agent_type=step.agent_type,

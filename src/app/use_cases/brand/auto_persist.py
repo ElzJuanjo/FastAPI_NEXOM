@@ -219,6 +219,16 @@ async def auto_persist_brand_identity(
     if not parsed:
         return None
 
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "brands")
+    except ResourceLimitExceededError:
+        logger.warning(
+            f"Brand auto-persist skipped for org {org_id}: resource limit reached"
+        )
+        return None
+
     name = parsed.get("name", "Brand — Auto-generada")
     if not parsed.get("name") and conversation_id:
         from domain.entities.conversation import Conversation

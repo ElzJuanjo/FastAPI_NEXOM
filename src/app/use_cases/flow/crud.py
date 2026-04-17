@@ -30,6 +30,10 @@ class FlowCreate:
         context: dict | None = None,
         steps_data: list[dict] | None = None,
     ) -> Flow:
+        # Validar mínimo 2 steps
+        if not steps_data or len(steps_data) < 2:
+            raise ValueError("Un flujo requiere al menos 2 pasos para orquestar agentes.")
+
         flow = Flow(
             organization_id=org_id,
             name=name,
@@ -38,20 +42,19 @@ class FlowCreate:
         )
         flow = await self._flow_repo.create(flow)
 
-        if steps_data:
-            # Create steps sequentially — each depends on the previous
-            previous_step_id: str | None = None
-            for step_data in sorted(steps_data, key=lambda s: s.get("order", 0)):
-                step = FlowStep(
-                    flow_id=flow.id,
-                    agent_type=step_data["agent_type"],
-                    name=step_data["name"],
-                    order=step_data["order"],
-                    status=StepStatus.PENDING,
-                    depends_on_step_id=previous_step_id,
-                )
-                step = await self._flow_repo.add_step(step)
-                previous_step_id = step.id
+        # Create steps sequentially — each depends on the previous
+        previous_step_id: str | None = None
+        for step_data in sorted(steps_data, key=lambda s: s.get("order", 0)):
+            step = FlowStep(
+                flow_id=flow.id,
+                agent_type=step_data["agent_type"],
+                name=step_data["name"],
+                order=step_data["order"],
+                status=StepStatus.PENDING,
+                depends_on_step_id=previous_step_id,
+            )
+            step = await self._flow_repo.add_step(step)
+            previous_step_id = step.id
 
         return flow
     

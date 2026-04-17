@@ -33,14 +33,25 @@ async def create_flow(
     use_case: FlowCreate = Depends(get_flow_create),
     session: AsyncSession = Depends(get_session),
 ):
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "flows")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     steps_data = [s.model_dump() for s in body.steps] if body.steps else None
 
-    flow = await use_case.execute(
-        org_id=org_id,
-        name=body.name,
-        context=body.context,
-        steps_data=steps_data,
-    )
+    try:
+        flow = await use_case.execute(
+            org_id=org_id,
+            name=body.name,
+            context=body.context,
+            steps_data=steps_data,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
     await session.commit()
 
     # Recargar con steps

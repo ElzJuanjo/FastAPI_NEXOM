@@ -28,6 +28,13 @@ async def create_brand(
     use_case: BrandCreate = Depends(get_brand_create),
     session: AsyncSession = Depends(get_session),
 ):
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "brands")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     brand = await use_case.execute(
         org_id=org_id,
         name=body.name,
@@ -67,6 +74,13 @@ async def create_brand_from_template(
     session: AsyncSession = Depends(get_session),
 ):
     """Crea una marca a partir de un template predefinido."""
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "brands")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     from app.use_cases.brand.templates import get_template_by_id
     template = get_template_by_id(template_id)
     if not template:

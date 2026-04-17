@@ -19,10 +19,18 @@ router = APIRouter(prefix="/creatives", tags=["Creatives"])
 @router.post("", response_model=CreativeResponse, status_code=status.HTTP_201_CREATED)
 async def create_creative(
     body: CreateCreativeRequest,
+    org_id: str = Depends(get_current_org_id),
     user_id: str = Depends(get_current_user_id),
     use_case: CreativeCreate = Depends(get_creative_create),
     session: AsyncSession = Depends(get_session),
 ):
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "creatives")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     creative = await use_case.execute(**body.model_dump())
     await session.commit()
     return CreativeResponse.model_validate(creative)
@@ -36,6 +44,13 @@ async def create_creative_from_url(
     session: AsyncSession = Depends(get_session),
 ):
     """Crea un creativo directamente desde una URL de S3 (sin re-subir)."""
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "creatives")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     from domain.entities.creative import Creative
     from domain.entities.base import AssetStatus, AgentType
 

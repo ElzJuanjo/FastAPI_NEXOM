@@ -277,7 +277,18 @@ async def persist_selected_candidates(
     created_ids: list[str] = []
     skipped_names: list[str] = []
 
-    for item in items[:MAX_CANDIDATES]:
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import count_resources, RESOURCE_LIMITS
+    current_count = await count_resources(session, org_id, "products")
+    limit = RESOURCE_LIMITS.get("products", 400)
+    available_slots = max(0, limit - current_count)
+    if available_slots == 0:
+        logger.warning(f"Product persist skipped for org {org_id}: resource limit reached ({current_count}/{limit})")
+        for item in items[:MAX_CANDIDATES]:
+            skipped_names.append(str(item.get("name", ""))[:120] or "(limit reached)")
+        return created_ids, skipped_names
+
+    for item in items[:min(MAX_CANDIDATES, available_slots)]:
         normalized = _normalize_product(item)
         if not normalized:
             skipped_names.append(str(item.get("name", ""))[:120] or "(unnamed)")

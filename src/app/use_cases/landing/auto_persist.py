@@ -153,6 +153,16 @@ async def auto_persist_landing_sections(
     if len(sections_data) < 2:
         return None
 
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "landing_pages")
+    except ResourceLimitExceededError:
+        logger.warning(
+            f"Landing page auto-persist skipped for org {org_id}: resource limit reached"
+        )
+        return None
+
     # Landing page name: from JSON > conversation title > default
     if not lp_name:
         lp_name = "Landing — Auto-generada"

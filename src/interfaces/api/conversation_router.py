@@ -136,6 +136,10 @@ async def send_message_stream(
                     yield emitter.to_sse_error("Conversation not found")
                     return
             else:
+                # ── Auto-rotate old conversations if near limit ──
+                from app.use_cases.resource_limits import cleanup_if_needed
+                await cleanup_if_needed(session, org_id, "conversations")
+
                 title = body.content[:80] + ("..." if len(body.content) > 80 else "")
                 conversation = Conversation(organization_id=org_id, user_id=user_id, title=title)
                 session.add(conversation)
@@ -278,6 +282,9 @@ async def send_message_stream(
             # Agent task
             if agent_type:
                 from domain.entities.agent import AgentTask
+                # ── Auto-rotate old agent tasks if near limit ──
+                from app.use_cases.resource_limits import cleanup_if_needed as cleanup_tasks
+                await cleanup_tasks(session, org_id, "agent_tasks")
                 try:
                     agent_task = AgentTask(
                         organization_id=org_id,

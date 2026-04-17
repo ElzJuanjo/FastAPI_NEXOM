@@ -33,6 +33,13 @@ async def create_product(
     use_case: ProductCreate = Depends(get_product_create),
     session: AsyncSession = Depends(get_session),
 ):
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "products")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     product = await use_case.execute(
         org_id=org_id,
         **body.model_dump(exclude_unset=True),
@@ -63,6 +70,13 @@ async def import_from_dropi(
     Importa un producto desde Dropi por su ID.
     Persiste con la misma estructura de extra_data que auto_persist
     """
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "products")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     import re
     from infra.tools.dropi_client import dropi_client, DropisError
 
@@ -91,9 +105,6 @@ async def import_from_dropi(
     name = (dropi_product.get("name") or "").strip()
     price_proveedor = float(dropi_product.get("price", 0) or 0)
 
-    # Validación reforzada: la API de Dropi puede retornar un dict con
-    # estructura válida pero datos vacíos para IDs que no existen
-    # (name="", price=0). Eso no es un producto real.
     if not name or price_proveedor <= 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -125,28 +136,18 @@ async def import_from_dropi(
         description = category or name
 
     # ── Calculate a meaningful score from Dropi data ──
-    # Dropi doesn't have sales/trend/competition data, but we do have margin
-    # and stock which are strong signals. We align with the general scoring
-    # system (scoring.py) using the same component weights where data exists.
-    # Components without data use neutral baselines (same as score_product).
     from app.agents.scoring import normalize
 
-    # Margin score (weight 0.25 in general scoring) — we HAVE this data
     margin_score = normalize(margin_pct, 0, 80) if margin_pct > 0 else 0.0
     margin_has_data = margin_pct > 0
 
-    # Stock as a proxy for demand/availability (maps to sales weight 0.30)
-    # High stock = supplier is confident in demand
     stock_score = normalize(stock, 0, 2000) if stock > 0 else 0.0
     stock_has_data = stock > 0
 
-    # Rating, trend, competition: no data from Dropi → neutral baseline
     rating_score = 50.0
     trend_score = 50.0
     competition_score = 50.0
 
-    # Calculate score using real data normalized + neutral baselines
-    # Same formula: (Sales×0.30) + (Margin×0.25) + (Trend×0.20) + (Comp×0.15) + (Rating×0.10)
     raw_score = (
         stock_score * 0.30
         + margin_score * 0.25
@@ -155,9 +156,6 @@ async def import_from_dropi(
         + rating_score * 0.10
     )
 
-    # If we have real data for at least margin OR stock, apply a mild boost
-    # to avoid the "everything is 50" effect of pure neutral baselines.
-    # This mirrors the v3 blending logic in scoring.py.
     real_weight = (0.25 if margin_has_data else 0) + (0.30 if stock_has_data else 0)
     if real_weight >= 0.25:
         real_sum = (margin_score * 0.25 if margin_has_data else 0) + (stock_score * 0.30 if stock_has_data else 0)
@@ -167,16 +165,13 @@ async def import_from_dropi(
     else:
         dropi_score = round(min(raw_score, 100.0), 1)
 
-    # Bucket classification (aligned with general thresholds)
     if dropi_score >= 75:
         dropi_bucket = "winner"
     elif dropi_score >= 50:
         dropi_bucket = "potential"
     else:
-        dropi_bucket = "dropi"  # keep dropi tag for UI differentiation
+        dropi_bucket = "dropi"
 
-    # ── Build extra_data with SAME structure as auto_persist ──
-    # This is what the frontend reads to render the rich product card
     extra_data = {
         "source": "dropi_import",
         "bucket": dropi_bucket,
@@ -195,7 +190,6 @@ async def import_from_dropi(
         "seller": supplier,
         "reviews_count": 0,
         "currency": "COP",
-        # Dropi-specific extras (not rendered by card but useful)
         "dropi_import": True,
         "price_cop_proveedor": price_proveedor,
         "price_cop_sugerido": price_sugerido,
@@ -301,12 +295,14 @@ async def persist_selected_products(
 ):
     """
     Persiste manualmente los productos que el usuario seleccionó desde el chat o flow.
-
-    Recibe una lista de hasta 20 productos con sus datos y los guarda en el catálogo
-    con su score REAL y su bucket de clasificación (winner/potential/
-    rejected) preservado en extra_data para que la página de Productos pueda filtrarlos
-    correctamente.
     """
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "products")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     from app.use_cases.product.auto_persist import persist_selected_candidates
 
     items = [item.model_dump() for item in body.products]

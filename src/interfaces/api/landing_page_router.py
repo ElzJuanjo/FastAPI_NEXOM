@@ -31,6 +31,13 @@ async def create_landing_page(
     if not org_id:
         raise HTTPException(status_code=403, detail="No organization found")
 
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "landing_pages")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     sections_data = [s.model_dump() for s in body.sections] if body.sections else None
     lp = await use_case.execute(org_id=org_id, name=body.name, brand_id=body.brand_id, campaign=body.campaign, sections_data=sections_data)
     await session.commit()

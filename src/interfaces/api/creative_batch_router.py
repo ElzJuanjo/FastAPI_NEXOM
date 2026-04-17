@@ -519,6 +519,9 @@ async def _finalize_batch(
         task_error = None
 
     try:
+        # ── Auto-rotate old agent tasks if near limit ──
+        from app.use_cases.resource_limits import cleanup_if_needed
+        await cleanup_if_needed(session, org_id, "agent_tasks")
         agent_task = AgentTask(
             organization_id=org_id,
             agent_type="image_gen",

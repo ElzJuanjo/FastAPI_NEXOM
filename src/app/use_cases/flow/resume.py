@@ -197,6 +197,9 @@ class FlowResumeWithSelection:
 
                 # Sanitizar content para AgentTask (no exponer bloques internos en Activity)
                 raw_content = output.get("content") or ""
+                # ── Auto-rotate old agent tasks if near limit ──
+                from app.use_cases.resource_limits import cleanup_if_needed
+                await cleanup_if_needed(self._flow_repo._session, flow.organization_id, "agent_tasks")
                 task = AgentTask(
                     organization_id=flow.organization_id,
                     agent_type=step.agent_type,

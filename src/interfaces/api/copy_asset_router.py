@@ -32,6 +32,13 @@ async def create_copy_asset(
     use_case: CopyAssetCreate = Depends(get_copy_asset_create),
     session: AsyncSession = Depends(get_session),
 ):
+    # ── Resource limit check ──
+    from app.use_cases.resource_limits import check_resource_limit, ResourceLimitExceededError
+    try:
+        await check_resource_limit(session, org_id, "copy_assets")
+    except ResourceLimitExceededError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
     asset = await use_case.execute(
         org_id=org_id,
         **body.model_dump(exclude_unset=True),

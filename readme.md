@@ -241,3 +241,9 @@ Ejecución modo desarrollador: `uvicorn main:app --reload --app-dir src`
 | `app/use_cases/conversation/content_sanitizer.py`   | Sanitiza el content del agente antes de entregarlo al usuario final.           |
 | `app/use_cases/product/auto_persist.py`             | Auto-persistencia de Productos Winners desde output del agente product_search. |
 | `interfaces/api/upload_router.py`                   | Endpoint para subir imágenes al chat (pre-upload antes de enviar mensaje).    |
+
+### Sprint 22 - Validaciones generales
+
+| Archivo                              | Propósito                                                      |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `app/use_cases/resource_limits.py` | Límites de recursos por organización — módulo centralizado. |

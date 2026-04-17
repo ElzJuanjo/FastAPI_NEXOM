@@ -58,6 +58,9 @@ class AgentExecute:
 
         # 3. Crear task en estado IN_PROGRESS
         started_at = datetime.now(timezone.utc)
+        # ── Auto-rotate old agent tasks if near limit ──
+        from app.use_cases.resource_limits import cleanup_if_needed
+        await cleanup_if_needed(self._task_repo._session, organization_id, "agent_tasks")
         task = AgentTask(
             organization_id=organization_id,
             agent_type=agent_type,

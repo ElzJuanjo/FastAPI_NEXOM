@@ -1,6 +1,6 @@
 from typing import List
 from domain.entities.landing_page import LandingPage, LandingPageSection
-from domain.entities.base import AssetStatus
+from domain.entities.base import LandingPageStatus
 from domain.repositories.landing_page_repository import LandingPageRepository
 
 
@@ -16,7 +16,7 @@ class LandingPageCreate:
         self._repo = repo
 
     async def execute(self, org_id: str, name: str, brand_id: str | None = None, campaign: str | None = None, sections_data: list[dict] | None = None) -> LandingPage:
-        lp = LandingPage(organization_id=org_id, brand_id=brand_id, name=name, campaign=campaign, status=AssetStatus.DRAFT)
+        lp = LandingPage(organization_id=org_id, brand_id=brand_id, name=name, campaign=campaign, status=LandingPageStatus.DRAFT)
         lp = await self._repo.create(lp)
 
         if sections_data:
@@ -40,15 +40,19 @@ class LandingPageUpdate:
         self._repo = repo
 
     async def execute(self, lp_id: str, **kwargs) -> LandingPage:
+        from datetime import datetime, timezone
         lp = await self._repo.get_by_id(lp_id)
         if not lp:
             raise LandingPageNotFoundError(f"LandingPage {lp_id} no encontrada")
+        nullable_fields = {"brand_id", "published_url", "seo_title", "seo_description", "og_image", "analytics_config", "custom_css"}
         for k, v in kwargs.items():
-            # Allow explicit None for nullable fields (like brand_id)
-            if k == "brand_id":
+            if k in nullable_fields:
                 setattr(lp, k, v)
             elif v is not None:
                 setattr(lp, k, v)
+        # Auto-stamp published_at when going to published
+        if kwargs.get("status") in ("published", LandingPageStatus.PUBLISHED) and not lp.published_at:
+            lp.published_at = datetime.now(timezone.utc)
         return await self._repo.update(lp)
 
 
@@ -73,7 +77,7 @@ class LandingSectionUpdate:
             raise LandingSectionNotFoundError(f"Section {section_id} no encontrada")
 
         # Campos que permiten ser seteados a None explícitamente
-        nullable_fields = {"image_url", "images", "cta_text", "cta_url", "content"}
+        nullable_fields = {"image_url", "images", "cta_text", "cta_url", "content", "ab_group"}
 
         for k, v in kwargs.items():
             if k in nullable_fields:

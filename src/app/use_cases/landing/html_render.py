@@ -60,7 +60,7 @@ class LandingHTMLRender:
         self._lp = lp_repo
         self._br = brand_repo
 
-    async def render(self, lp_id: str) -> str:
+    async def render(self, lp_id: str, ab_variant: str | None = None) -> str:
         lp = await self._lp.get_by_id(lp_id)
         if not lp:
             raise LandingRenderError("not found")
@@ -79,10 +79,48 @@ class LandingHTMLRender:
         )
         brand_name = brand.name if brand else lp.name
         template_id = getattr(lp, "template", None) or "modern"
-        sections = sorted(
-            [s for s in lp.sections if s.is_visible], key=lambda x: x.order
-        )
+        visible = [s for s in lp.sections if s.is_visible]
+        if ab_variant:
+            # Include sections with no ab_group OR matching the requested variant
+            visible = [s for s in visible if not getattr(s, "ab_group", None) or getattr(s, "ab_group", None) == ab_variant]
+        sections = sorted(visible, key=lambda x: x.order)
         rendered = "\n".join(render_section(s, theme) for s in sections)
+        campaign = getattr(lp, "campaign", "") or ""
+        active_custom_css = ""
+        if getattr(lp, "use_custom_css", True) and getattr(lp, "custom_css", None):
+            active_custom_css = lp.custom_css
+        return html_shell(
+            rendered, lp.name, brand_name, theme, template_id,
+            campaign=campaign,
+            seo_title=getattr(lp, "seo_title", "") or "",
+            seo_description=getattr(lp, "seo_description", "") or "",
+            og_image=getattr(lp, "og_image", "") or "",
+            analytics_config=getattr(lp, "analytics_config", None) or {},
+            custom_css=active_custom_css,
+        )
+
+    async def render_one_section(self, lp_id: str, section_id: str) -> str:
+        lp = await self._lp.get_by_id(lp_id)
+        if not lp:
+            raise LandingRenderError("not found")
+        section = next((s for s in lp.sections if s.id == section_id), None)
+        if not section:
+            raise LandingRenderError("section not found")
+        brand = await self._br.get_by_id(lp.brand_id) if lp.brand_id else None
+        c = brand.color_palette or {} if brand else {}
+        ty = brand.typography or {} if brand else {}
+        theme = Theme(
+            primary=c.get("primary", "#6D28D9"),
+            secondary=c.get("secondary", "#1E1B4B"),
+            accent=c.get("accent", "#A78BFA"),
+            background=c.get("background", "#ffffff"),
+            text=c.get("text", "#111827"),
+            heading_font=ty.get("heading_font", "Outfit"),
+            body_font=ty.get("body_font", "DM Sans"),
+        )
+        brand_name = brand.name if brand else lp.name
+        template_id = getattr(lp, "template", None) or "modern"
+        rendered = render_section(section, theme)
         return html_shell(rendered, lp.name, brand_name, theme, template_id)
 
 
@@ -784,8 +822,8 @@ def render_section(section, theme: Theme) -> str:
     renderers = {
         "hero": _render_hero,
         "social_proof": _render_social_proof,
-        "problem": _render_text_section,
-        "solution": _render_text_section,
+        "problem": _render_problem,
+        "solution": _render_solution,
         "transformation": _render_transformation,
         "features": _render_benefits,
         "benefits": _render_benefits,
@@ -802,9 +840,20 @@ def render_section(section, theme: Theme) -> str:
         "countdown": _render_countdown,
         "trust_badges": _render_trust_badges,
         "brand_story": _render_brand_story,
+        "stats_bar": _render_stats_bar,
+        "logo_wall": _render_logo_wall,
+        "case_study": _render_case_study,
+        "urgency_banner": _render_urgency_banner,
+        "process_steps": _render_process_steps,
+        "lead_form": _render_lead_form,
     }
     renderer = renderers.get(t, _render_fallback)
-    return renderer(section, theme)
+    html = renderer(section, theme)
+    # Inject id into first <section> tag for internal anchor navigation
+    if not re.search(r'<section[^>]*\bid\s*=', html[:300]):
+        section_id = t.replace("_", "-")
+        html = html.replace('<section', f'<section id="{section_id}"', 1)
+    return html
 
 
 def _render_hero(section, theme: Theme) -> str:
@@ -828,17 +877,28 @@ def _render_hero(section, theme: Theme) -> str:
         trust = _strip_markdown(trust).strip(" *")
 
     cta = _extract_cta_text(raw)
-    
+    cta_url = section.cta_url or ct.get("cta_url", "#")
+    secondary_cta = ct.get("secondary_cta_text", "")
+    secondary_cta_url = ct.get("secondary_cta_url", "#")
+
     hero_img = section.image_url or ct.get("image_url", "")
     img_html = ""
     if hero_img:
         img_html = f'<img src="{_e(hero_img)}" alt="{_e(title)}" class="hero-product-img" loading="lazy">'
 
+    secondary_btn = (
+        f'<a class="btn btn-secondary" href="{_e(secondary_cta_url)}">{_e(secondary_cta)}</a>'
+        if secondary_cta else ""
+    )
+
     return f"""<section class="hero">
   <div class="container">
     <h1>{_e(title)}</h1>
     <p class="subtitle">{_e(subtitle)}</p>
-    <a class="btn btn-primary">{_e(cta)}</a>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="{_e(cta_url)}">{_e(cta)}</a>
+      {secondary_btn}
+    </div>
     {f'<p class="trust-line">{_e(trust)}</p>' if trust else ''}
     {img_html}
   </div>
@@ -893,11 +953,19 @@ def _render_social_proof(section, theme: Theme) -> str:
                 if media.lower() in raw.lower():
                     stats.append({"value": media, "label": "Recomendado"})
 
+    # Logos separados (desde content.logos o del parseo de medios)
+    logos = ct.get("logos", [])
+
     # Filter out empty or broken items
-    stats = [s for s in stats if s.get("value") and len(str(s["value"]).strip(",. ")) > 0]
+    stats = [s for s in stats if s.get("value") and len(str(s.get("value", "")).strip(",. ")) > 0]
+
+    # Separate media/logo items from real metrics
+    media_labels = {"como se vio en", "recomendado", "featured in", "en medios"}
+    metric_stats = [s for s in stats if s.get("label", "").lower() not in media_labels]
+    logo_stats = [s for s in stats if s.get("label", "").lower() in media_labels]
 
     items_html = ""
-    for s in stats[:4]:
+    for s in metric_stats[:4]:
         stars = '<div class="proof-stars">★★★★★</div>' if s.get("has_stars") else ""
         items_html += f"""      <div class="proof-item">
         {stars}
@@ -905,13 +973,82 @@ def _render_social_proof(section, theme: Theme) -> str:
         <div class="proof-label">{_e(s.get("label", ""))}</div>
       </div>\n"""
 
-    if not items_html:
-        return ""  # Don't render empty social proof
+    # Logo strip — from content.logos or fallback from parsed logo_stats
+    all_logos = logos or [{"name": s.get("value", "")} for s in logo_stats]
+    logos_html = ""
+    for lg in all_logos[:8]:
+        img_url = lg.get("image_url", "")
+        name = lg.get("name", "")
+        if img_url:
+            logos_html += f'<img src="{_e(img_url)}" alt="{_e(name)}" title="{_e(name)}">\n'
+        elif name:
+            logos_html += f'<span class="media-badge">{_e(name)}</span>\n'
+
+    if not items_html and not logos_html:
+        title = section.title or "Prueba Social"
+        body = section.body or ""
+        paras = "".join(f"<p>{_e(p.strip())}</p>" for p in body.split("\n") if p.strip())
+        return f"""<section class="social-proof">
+  <div class="container">
+    {f'<h2>{_e(title)}</h2>' if title else ''}
+    {paras}
+  </div>
+</section>"""
+
+    logo_strip = (
+        f'<div class="logo-wall-strip">{logos_html}</div>' if logos_html else ""
+    )
 
     return f"""<section class="social-proof">
   <div class="container">
-    <div class="proof-grid">
-{items_html}    </div>
+    {f'<div class="proof-grid">{items_html}</div>' if items_html else ''}
+    {logo_strip}
+  </div>
+</section>"""
+
+
+def _render_problem(section, theme: Theme) -> str:
+    title = _extract_title(section)
+    raw = section.body or ""
+    lines = _clean_body(raw, exclude_title=title)
+    paras = [l for l in lines if len(l.strip()) > 12]
+    if not paras and not title:
+        return ""
+    body_html = ""
+    for i, para in enumerate(paras[:7]):
+        cls = ' class="pain-hook"' if i == 0 else ""
+        body_html += f"      <p{cls}>{_e(para)}</p>\n"
+    return f"""<section class="problem-section">
+  <div class="container">
+    <span class="section-label">El Problema</span>
+    <h2>{_e(title) if title else "¿Te resulta familiar?"}</h2>
+    <div class="problem-body">
+{body_html}    </div>
+  </div>
+</section>"""
+
+
+def _render_solution(section, theme: Theme) -> str:
+    title = _extract_title(section)
+    raw = section.body or ""
+    lines = _clean_body(raw, exclude_title=title)
+    paras = [l for l in lines if len(l.strip()) > 12]
+    cta_html = ""
+    if section.cta_text:
+        url = section.cta_url or "#"
+        cta_html = f'\n      <a href="{_e(url)}" class="btn btn-primary"><span>{_e(section.cta_text)}</span></a>'
+    body_html = ""
+    for i, para in enumerate(paras[:7]):
+        cls = ' class="solution-lead"' if i == 0 else ""
+        body_html += f"      <p{cls}>{_e(para)}</p>\n"
+    return f"""<section class="solution-section">
+  <div class="container">
+    <div class="solution-block">
+      <span class="section-label">La Solución</span>
+      <h2>{_e(title) if title else "La transformación que mereces"}</h2>
+      <div class="solution-body">
+{body_html}      </div>{cta_html}
+    </div>
   </div>
 </section>"""
 
@@ -1010,68 +1147,54 @@ def _render_benefits(section, theme: Theme) -> str:
 
 def _render_transformation(section, theme: Theme) -> str:
     title = _extract_title(section, fallback_generic="Tu vida antes y después")
+    ct = section.content or {}
     raw = section.body or ""
 
-    # Extract before/after — handle multiple line formats
-    before_text = ""
-    after_text = ""
+    # Prefer structured content fields
+    before_text = ct.get("before_text") or ct.get("before") or ""
+    after_text = ct.get("after_text") or ct.get("after") or ""
+    img_before = ct.get("image_before_url") or ct.get("before_image_url") or ""
+    img_after = ct.get("image_after_url") or ct.get("after_image_url") or ""
+    emotional = str(ct.get("emotional") or ct.get("copy") or "")
+    before_label = str(ct.get("before_label") or "Antes")
+    after_label = str(ct.get("after_label") or "Después")
 
-    # Format: "Izquierda (Antes):" or "* **Visual Izquierda:** Foto oscura..."
-    # or just "Antes:" or "Tu celular actual: ..."
-    before_m = re.search(
-        r"(?:Izquierda|Antes|Tu celular actual)[^:]*:\s*(?:\*\s*)?([^\n]+)",
-        raw, re.IGNORECASE
-    )
-    after_m = re.search(
-        r"(?:Derecha|Despu[eé]s|Nova\s*X\s*Pro)[^:]*:\s*(?:\*\s*)?([^\n]+)",
-        raw, re.IGNORECASE
-    )
-
-    if before_m:
-        before_text = _strip_markdown(before_m.group(1).strip())
-        before_text = re.sub(r"\(Texto sobre[^)]*\)", "", before_text).strip()
-        before_text = re.sub(r"Foto\s*(oscura|borrosa)[^.]*\+?\s*", "", before_text).strip()
-        # If all visual instruction got cleaned, use a content fallback
-        if len(before_text) < 5:
-            before_text = ""
-    if after_m:
-        after_text = _strip_markdown(after_m.group(1).strip())
-        after_text = re.sub(r"\(Texto sobre[^)]*\)", "", after_text).strip()
-        after_text = re.sub(r"Foto\s*(brillante|nítida)[^.]*\+?\s*", "", after_text).strip()
-        if len(after_text) < 5:
-            after_text = ""
-
-    # Look for "Texto:" sublines under before/after
-    if not before_text:
-        txt_m = re.search(
-            r"(?:Izquierda|Antes)[^:]*:.*?(?:Texto\s*:?\s*\*?\s*)([^\n]+)",
-            raw, re.IGNORECASE | re.DOTALL
+    # Fall back to regex body extraction
+    if not before_text or not after_text:
+        before_m = re.search(
+            r"(?:Izquierda|Antes|Tu celular actual)[^:]*:\s*(?:\*\s*)?([^\n]+)",
+            raw, re.IGNORECASE
         )
-        if txt_m:
-            before_text = _strip_markdown(txt_m.group(1).strip())
-    if not after_text:
-        txt_m = re.search(
-            r"(?:Derecha|Despu[eé]s)[^:]*:.*?(?:Texto\s*:?\s*\*?\s*)([^\n]+)",
-            raw, re.IGNORECASE | re.DOTALL
+        after_m = re.search(
+            r"(?:Derecha|Despu[eé]s|Nova\s*X\s*Pro)[^:]*:\s*(?:\*\s*)?([^\n]+)",
+            raw, re.IGNORECASE
         )
-        if txt_m:
-            after_text = _strip_markdown(txt_m.group(1).strip())
+        if before_m and not before_text:
+            bt = _strip_markdown(before_m.group(1).strip())
+            bt = re.sub(r"\(Texto sobre[^)]*\)", "", bt).strip()
+            bt = re.sub(r"Foto\s*(oscura|borrosa)[^.]*\+?\s*", "", bt).strip()
+            before_text = bt if len(bt) >= 5 else ""
+        if after_m and not after_text:
+            at = _strip_markdown(after_m.group(1).strip())
+            at = re.sub(r"\(Texto sobre[^)]*\)", "", at).strip()
+            at = re.sub(r"Foto\s*(brillante|nítida)[^.]*\+?\s*", "", at).strip()
+            after_text = at if len(at) >= 5 else ""
 
-    # Get emotional copy — look for "Copy Emocional:" or "Copy:" field
-    emotional = _extract_field(raw, "copy emocional", "emocional")
     if not emotional:
-        emotional = _extract_field(raw, "copy")
-    if not emotional:
-        lines = _clean_body(raw)
-        long_lines = [l for l in lines if len(l) > 40
-                      and "imagen dividida" not in l.lower()
-                      and "split-screen" not in l.lower()
-                      and "pantalla" not in l.lower()[:15]
-                      and "visual" not in l.lower()[:10]
-                      and l != before_text and l != after_text]
-        emotional = long_lines[-1] if long_lines else ""
-    # Strip surrounding quotes
+        emotional = _extract_field(raw, "copy emocional", "emocional", "copy")
+        if not emotional:
+            lines = _clean_body(raw)
+            long_lines = [l for l in lines if len(l) > 40
+                          and "imagen dividida" not in l.lower()
+                          and "split-screen" not in l.lower()
+                          and l != before_text and l != after_text]
+            emotional = long_lines[-1] if long_lines else ""
     emotional = emotional.strip('""\'"')
+
+    def _card_visual(img_url: str, emoji: str, label: str) -> str:
+        if img_url:
+            return f'<img src="{_e(img_url)}" alt="{_e(label)}" style="width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:16px">'
+        return f'<div class="emoji-big">{emoji}</div>'
 
     return f"""<section class="transformation">
   <div class="container">
@@ -1081,14 +1204,14 @@ def _render_transformation(section, theme: Theme) -> str:
     </div>
     <div class="transform-grid">
       <div class="transform-card before">
-        <div class="emoji-big">😤</div>
-        <h4>Antes</h4>
-        <p>{_e(before_text or 'Frustración, batería muerta, pantalla lenta.')}</p>
+        {_card_visual(img_before, "😤", before_label)}
+        <h4>{_e(before_label)}</h4>
+        <p>{_e(before_text or "Frustración, resultados lentos, sin dirección.")}</p>
       </div>
       <div class="transform-card after">
-        <div class="emoji-big">🤩</div>
-        <h4>Después</h4>
-        <p>{_e(after_text or 'Velocidad, cámara pro, batería para todo el día.')}</p>
+        {_card_visual(img_after, "🤩", after_label)}
+        <h4>{_e(after_label)}</h4>
+        <p>{_e(after_text or "Claridad, resultados reales, confianza total.")}</p>
       </div>
     </div>
     {f'<p class="transform-text">{_e(emotional)}</p>' if emotional else ''}
@@ -1162,13 +1285,16 @@ def _render_testimonials(section, theme: Theme) -> str:
         name = item.get("name", "Cliente")
         text = item.get("text", "")
         rating = int(item.get("rating", 5))
+        metric = item.get("metric", "")
+        company = item.get("company", "")
+        avatar_url = item.get("avatar_url", "")
 
         # Parse "Carlos M., 28 años (Ciudad de México)" into name + detail
         name_clean = re.sub(r"\([^)]*\)", "", name).strip()
 
         # Extract city from parentheses in original name
         city_m = re.search(r"\(([^)]+)\)", name)
-        city = city_m.group(1).strip() if city_m else ""
+        city = city_m.group(1).strip() if city_m else item.get("location", "")
 
         # Split name from age: "Carlos M., 28 años" → "Carlos M." + "28 años"
         name_parts = re.split(r",\s*", name_clean, maxsplit=1)
@@ -1176,20 +1302,30 @@ def _render_testimonials(section, theme: Theme) -> str:
         age = name_parts[1].strip() if len(name_parts) > 1 else ""
 
         # Build detail line
-        detail_parts = [p for p in [age, city] if p]
+        detail_parts = [p for p in [company or age, city] if p]
         detail = ", ".join(detail_parts)
 
-        # Avatar initials — use first letter of each word in name
+        # Avatar: image if available, else initials
         initials = "".join(
             w[0] for w in display_name.split()[:2]
             if w and w[0].isalpha()
         ).upper() or "C"
+        avatar_html = (
+            f'<img src="{_e(avatar_url)}" alt="{_e(display_name)}" class="author-avatar-img">'
+            if avatar_url
+            else f'<div class="author-avatar">{_e(initials)}</div>'
+        )
+
+        metric_html = (
+            f'<div class="testimonial-metric">{_e(metric)}</div>' if metric else ""
+        )
 
         cards_html += f"""      <div class="testimonial-card">
+        {metric_html}
         <div class="testimonial-stars">{"★" * min(rating, 5)}</div>
         <p class="testimonial-quote">&ldquo;{_e(text)}&rdquo;</p>
         <div class="testimonial-author">
-          <div class="author-avatar">{_e(initials)}</div>
+          {avatar_html}
           <div class="author-info">
             <div class="name">{_e(display_name)}</div>
             {f'<div class="role">{_e(detail)}</div>' if detail else ''}
@@ -1221,8 +1357,8 @@ def _render_faq(section, theme: Theme) -> str:
     faqs_html = ""
     for item in items:
         faqs_html += f"""      <div class="faq-item">
-        <h3>{_e(item["question"])}</h3>
-        <p>{_e(item["answer"])}</p>
+        <h3>{_e(item.get("question", ""))}</h3>
+        <p>{_e(item.get("answer", ""))}</p>
       </div>\n"""
 
     if not faqs_html:
@@ -1261,7 +1397,7 @@ def _render_cta(section, theme: Theme) -> str:
     ]
     reminder = reminder_lines[0] if reminder_lines else ""
 
-    return f"""<section class="cta-final">
+    return f"""<section class="cta-final" id="cta-final">
   <div class="container">
     {f'<div class="urgency-badge">⏳ {_e(urgency)}</div>' if urgency else ''}
     <h2>Da el salto a la tecnología que mereces</h2>
@@ -1609,24 +1745,45 @@ def _render_trust_badges(section, theme: Theme) -> str:
 
 
 def _render_brand_story(section, theme: Theme) -> str:
-    """Renderiza sección de historia/valores de marca."""
     title = _extract_title(section, fallback_generic="Nuestra historia")
+    ct = section.content or {}
     body_lines = _clean_body(section.body or "", exclude_title=title)
-    img = section.image_url or ""
-    
-    body_html = "".join(f"<p>{_e(l)}</p>" for l in body_lines)
-    
+    img = ct.get("image_url") or section.image_url or ""
+
+    founder_name = ct.get("founder_name") or ""
+    founder_title_str = ct.get("founder_title") or ""
+    founded_year = ct.get("founded_year") or ""
+    values = ct.get("values") or []
+
+    body_html = "".join(f"  <p>{_e(l)}</p>\n" for l in body_lines)
+
+    founder_html = ""
+    if founder_name:
+        founder_html = f"""<div class="founder-card" style="margin-top:32px">
+      <div class="founder-initials">{_e(founder_name[:2].upper())}</div>
+      <div>
+        <div class="founder-name">{_e(founder_name)}</div>
+        <div class="founder-title">{_e(founder_title_str or "Fundador/a")}{f" · {_e(str(founded_year))}" if founded_year else ""}</div>
+      </div>
+    </div>"""
+
+    values_html = ""
+    if values:
+        items = "".join(f'<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:99px;border:1px solid var(--bd);font-size:.8rem;margin:4px">{_e(str(v))}</span>' for v in values[:6])
+        values_html = f'<div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:4px">{items}</div>'
+
     img_col = f"""<div class="story-image">
-        <img src="{_e(img)}" alt="{_e(title)}" loading="lazy">
+      <img src="{_e(img)}" alt="{_e(title)}" loading="lazy" style="width:100%;border-radius:var(--r-lg);object-fit:cover;aspect-ratio:4/3">
     </div>""" if img else ""
-    
+
     return f"""<section class="brand-story-section">
   <div class="container">
     <div class="story-layout {'with-image' if img else ''}">
       <div class="story-content">
         <p class="section-label">Nuestra historia</p>
         <h2>{_e(title)}</h2>
-        {body_html}
+{body_html}        {values_html}
+        {founder_html}
       </div>
       {img_col}
     </div>
@@ -1635,48 +1792,448 @@ def _render_brand_story(section, theme: Theme) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# NEW HIGH-IMPACT SECTION RENDERERS
+# ═══════════════════════════════════════════════════════════════════
+
+def _render_stats_bar(section, theme: Theme) -> str:
+    ct = section.content or {}
+    stats = ct.get("stats", [])
+    if not stats:
+        return ""
+
+    items_html = ""
+    for s in stats:
+        icon = s.get("icon", "")
+        items_html += f"""    <div class="stat-item">
+      {f'<div class="stat-icon">{_e(icon)}</div>' if icon else ''}
+      <div class="stat-value">{_e(str(s.get("value", "")))}</div>
+      <div class="stat-label">{_e(s.get("label", ""))}</div>
+    </div>\n"""
+
+    return f"""<section class="stats-bar-section">
+  <div class="container">
+    <div class="stats-bar">
+{items_html}    </div>
+  </div>
+</section>"""
+
+
+def _render_logo_wall(section, theme: Theme) -> str:
+    ct = section.content or {}
+    logos = ct.get("logos", [])
+    title = ct.get("title", "") or section.title or "Confiado por marcas líderes"
+
+    logos_html = ""
+    if not logos:
+        body = section.body or ""
+        paras = "".join(f"<p>{_e(p.strip())}</p>" for p in body.split("\n") if p.strip())
+        return f"""<section class="logo-wall-section">
+  <div class="container">
+    {f'<p class="logo-wall-title">{_e(title)}</p>' if title else ''}
+    {paras}
+  </div>
+</section>"""
+
+    for lg in logos:
+        img_url = lg.get("image_url", "")
+        name = lg.get("name", "")
+        if img_url:
+            logos_html += f'<img src="{_e(img_url)}" alt="{_e(name)}" title="{_e(name)}">\n'
+        elif name:
+            logos_html += f'<span class="media-badge">{_e(name)}</span>\n'
+
+    return f"""<section class="logo-wall-section">
+  <div class="container">
+    {f'<p class="logo-wall-title">{_e(title)}</p>' if title else ''}
+    <div class="logo-wall-strip">
+{logos_html}    </div>
+  </div>
+</section>"""
+
+
+def _render_case_study(section, theme: Theme) -> str:
+    ct = section.content or {}
+    brand = ct.get("brand", "")
+    founder_name = ct.get("founder_name", "")
+    founder_title = ct.get("founder_title", "")
+    founder_img = ct.get("founder_image_url", "")
+    brand_logo = ct.get("brand_logo_url", "")
+    metric_value = ct.get("metric_value", "")
+    metric_label = ct.get("metric_label", "")
+    metric_period = ct.get("metric_period", "")
+    narrative = ct.get("narrative", "") or section.body or ""
+    cta_text = ct.get("cta_text", "") or section.cta_text or ""
+    cta_url = ct.get("cta_url", "") or section.cta_url or "#"
+
+    if not metric_value:
+        return ""
+
+    founder_avatar = (
+        f'<img src="{_e(founder_img)}" alt="{_e(founder_name)}" class="founder-img">'
+        if founder_img
+        else f'<div class="founder-initials">{"".join(w[0] for w in founder_name.split()[:2] if w).upper() or "C"}</div>'
+    )
+
+    founder_block = ""
+    if founder_name:
+        founder_block = f"""<div class="founder-card">
+          {founder_avatar}
+          <div>
+            <div class="founder-name">{_e(founder_name)}</div>
+            {f'<div class="founder-title">{_e(founder_title)}</div>' if founder_title else ''}
+            {f'<div class="founder-title">{_e(brand)}</div>' if brand and not founder_title else ''}
+          </div>
+        </div>"""
+
+    brand_logo_html = (
+        f'<img src="{_e(brand_logo)}" alt="{_e(brand)}" style="height:36px;margin-bottom:24px;opacity:.8">'
+        if brand_logo else ""
+    )
+
+    narrative_html = f'<p class="case-narrative">{_e(narrative[:300])}</p>' if narrative else ""
+    cta_html = (
+        f'<a href="{_e(cta_url)}" class="case-cta-link">{_e(cta_text)} →</a>'
+        if cta_text else ""
+    )
+
+    return f"""<section class="case-study-section">
+  <div class="container">
+    <div class="case-study-card">
+      <div class="case-proof-left">
+        {brand_logo_html}
+        {founder_block}
+      </div>
+      <div class="case-proof-right">
+        <div class="case-metric-value">{_e(metric_value)}</div>
+        <div class="case-metric-label">{_e(metric_label)}</div>
+        {f'<div class="case-metric-period">{_e(metric_period)}</div>' if metric_period else ''}
+        {narrative_html}
+        {cta_html}
+      </div>
+    </div>
+  </div>
+</section>"""
+
+
+def _render_urgency_banner(section, theme: Theme) -> str:
+    ct = section.content or {}
+    message = ct.get("message", "") or section.title or "¡Oferta por tiempo limitado!"
+    cta_text = ct.get("cta_text", "") or section.cta_text or ""
+    cta_url = ct.get("cta_url", "#") or section.cta_url or "#"
+    end_date = ct.get("end_date", "")
+    dismissible = ct.get("dismissible", True)
+
+    cta_html = (
+        f'<a href="{_e(cta_url)}" class="ub-cta">{_e(cta_text)}</a>'
+        if cta_text else ""
+    )
+    close_btn = '<button class="ub-close" aria-label="Cerrar">×</button>' if dismissible else ""
+    countdown_html = (
+        f'<span class="ub-countdown" data-end="{_e(end_date)}" id="ub-cd"></span>'
+        if end_date else ""
+    )
+
+    return f"""<div class="urgency-banner" role="banner">
+  <span>{_e(message)}</span>
+  {countdown_html}
+  {cta_html}
+  {close_btn}
+</div>"""
+
+
+def _render_process_steps(section, theme: Theme) -> str:
+    ct = section.content or {}
+    items = ct.get("items", [])
+    title = ct.get("title", "") or _extract_title(section, fallback_generic="Cómo funciona")
+
+    if not items:
+        return ""
+
+    steps_html = ""
+    for item in items:
+        step_num = item.get("step", "")
+        icon = item.get("icon", "")
+        step_title = item.get("title", "")
+        desc = item.get("description", "")
+        steps_html += f"""    <div class="step-item">
+      <div class="step-circle">
+        {f'<span class="step-icon">{_e(icon)}</span>' if icon else str(step_num)}
+      </div>
+      <h4 class="step-title">{_e(step_title)}</h4>
+      {f'<p class="step-desc">{_e(desc)}</p>' if desc else ''}
+    </div>\n"""
+
+    return f"""<section class="process-steps-section">
+  <div class="container">
+    <div class="section-header" style="text-align:center;margin-bottom:56px">
+      <h2>{_e(title)}</h2>
+    </div>
+    <div class="steps-flow">
+{steps_html}    </div>
+  </div>
+</section>"""
+
+
+def _render_lead_form(section, theme: Theme) -> str:
+    ct = section.content or {}
+    title = _extract_title(section, fallback_generic="Únete ahora")
+    body = _clean_body(section.body or "")
+    subtitle = body[0] if body else ct.get("subtitle", "")
+
+    fields = ct.get("fields", [
+        {"name": "name", "label": "Nombre", "type": "text", "required": True},
+        {"name": "email", "label": "Email", "type": "email", "required": True},
+    ])
+    cta_text = section.cta_text or ct.get("cta_text", "Enviar")
+    lp_id = getattr(section, "landing_page_id", "") or ct.get("lp_id", "")
+    section_id = getattr(section, "id", "") or ct.get("section_id", "")
+
+    fields_html = ""
+    for f in fields:
+        fname = _e(f.get("name", "field"))
+        flabel = _e(f.get("label", fname))
+        ftype = _e(f.get("type", "text"))
+        req = "required" if f.get("required") else ""
+        if ftype == "textarea":
+            fields_html += f'<div class="lf-field"><label for="lf-{fname}">{flabel}</label><textarea id="lf-{fname}" name="{fname}" {req} rows="3"></textarea></div>\n'
+        else:
+            fields_html += f'<div class="lf-field"><label for="lf-{fname}">{flabel}</label><input id="lf-{fname}" name="{fname}" type="{ftype}" {req}></div>\n'
+
+    api_base = ct.get("api_base", "/api/v1/landing-pages")
+
+    return f"""<section class="lead-form-section">
+  <div class="container">
+    <div class="section-header" style="text-align:center;margin-bottom:40px">
+      <h2>{_e(title)}</h2>
+      {f'<p class="section-subtitle">{_e(subtitle)}</p>' if subtitle else ''}
+    </div>
+    <form class="lead-form" id="lf-{section_id or 'form'}" novalidate>
+      {fields_html}
+      <button type="submit" class="btn btn-primary lf-submit">{_e(cta_text)}</button>
+      <p class="lf-status" style="display:none;margin-top:12px;text-align:center"></p>
+    </form>
+  </div>
+  <script>
+  (function(){{
+    var form=document.getElementById('lf-{section_id or 'form'}');
+    if(!form)return;
+    form.addEventListener('submit',function(e){{
+      e.preventDefault();
+      var status=form.querySelector('.lf-status');
+      var btn=form.querySelector('.lf-submit');
+      btn.disabled=true;
+      var data={{}};
+      new FormData(form).forEach(function(v,k){{data[k]=v;}});
+      fetch('{api_base}/{lp_id}/leads',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{section_id:'{section_id}',data:data}})}})
+        .then(function(r){{return r.ok?r.json():Promise.reject(r);}})
+        .then(function(){{
+          status.style.display='block';status.style.color='var(--p)';
+          status.textContent='✅ ¡Recibido! Nos ponemos en contacto pronto.';
+          form.reset();
+        }})
+        .catch(function(){{
+          status.style.display='block';status.style.color='#ef4444';
+          status.textContent='Error al enviar. Intenta de nuevo.';
+          btn.disabled=false;
+        }});
+    }});
+  }})();
+  </script>
+</section>"""
+
+
+# ═══════════════════════════════════════════════════════════════════
 # HTML SHELL
 # ═══════════════════════════════════════════════════════════════════
 
-def html_shell(body: str, name: str, brand_name: str, theme: Theme, template_id: str = "modern") -> str:
+_JS_BLOCK = """<script>
+(function(){
+  // ── FAQ Accordion ──
+  document.querySelectorAll('.faq-item h3').forEach(function(q){
+    q.style.cursor='pointer';q.style.userSelect='none';
+    var p=q.nextElementSibling;
+    if(!p)return;
+    p.style.overflow='hidden';p.style.maxHeight='0';
+    p.style.transition='max-height .35s ease,opacity .3s ease,margin-top .3s ease';
+    p.style.opacity='0';p.style.marginTop='0';
+    var arrow=document.createElement('span');
+    arrow.innerHTML='&#9658;';
+    arrow.style.cssText='font-size:.7rem;transition:transform .3s;display:inline-block;margin-left:8px;opacity:.6';
+    q.appendChild(arrow);
+    q.addEventListener('click',function(){
+      var open=q.parentElement.classList.toggle('faq-open');
+      if(open){p.style.maxHeight=p.scrollHeight+'px';p.style.opacity='1';p.style.marginTop='12px';arrow.style.transform='rotate(90deg)';}
+      else{p.style.maxHeight='0';p.style.opacity='0';p.style.marginTop='0';arrow.style.transform='rotate(0)';}
+    });
+  });
+
+  // ── Countdown Timer ──
+  document.querySelectorAll('.countdown-timer[data-end]').forEach(function(el){
+    var end=new Date(el.dataset.end).getTime();
+    if(isNaN(end))return;
+    function pad(n){return String(n).padStart(2,'0')}
+    function tick(){
+      var diff=end-Date.now();
+      if(diff<=0){el.innerHTML='<div style="font-size:1.2rem;font-weight:700;opacity:.7">Oferta expirada</div>';return;}
+      var d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),
+          m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
+      var days=document.getElementById('cd-days'),hours=document.getElementById('cd-hours'),
+          mins=document.getElementById('cd-mins'),secs=document.getElementById('cd-secs');
+      if(days)days.textContent=pad(d);if(hours)hours.textContent=pad(h);
+      if(mins)mins.textContent=pad(m);if(secs)secs.textContent=pad(s);
+    }
+    tick();setInterval(tick,1000);
+  });
+
+  // ── Scroll class for sticky nav ──
+  window.addEventListener('scroll',function(){
+    document.body.classList.toggle('scrolled',window.scrollY>60);
+  },{passive:true});
+
+  // ── Urgency banner dismiss ──
+  document.querySelectorAll('.urgency-banner .ub-close').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var banner=btn.closest('.urgency-banner');
+      if(banner)banner.classList.add('dismissed');
+    });
+  });
+
+  // ── Block link navigation (preview mode) ──
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('a[href]');
+    if(a){e.preventDefault();}
+  },true);
+
+  // ── Scroll entrance animations ──
+  if(window.IntersectionObserver){
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){e.target.classList.add('revealed');io.unobserve(e.target);}
+      });
+    },{threshold:0.07,rootMargin:'0px 0px -40px 0px'});
+    document.querySelectorAll('section').forEach(function(el){
+      el.classList.add('reveal');
+      io.observe(el);
+    });
+  }
+
+  // ── Gallery carousel ──
+  document.querySelectorAll('.gc-wrapper').forEach(function(wrapper){
+    var slides=wrapper.querySelectorAll('.gc-slide'),dots=wrapper.querySelectorAll('.gc-dot');
+    var cur=0;
+    function go(n){
+      slides[cur].classList.remove('active');dots[cur]&&dots[cur].classList.remove('active');
+      cur=(n+slides.length)%slides.length;
+      slides[cur].classList.add('active');dots[cur]&&dots[cur].classList.add('active');
+    }
+    var prev=wrapper.querySelector('.gc-prev'),next=wrapper.querySelector('.gc-next');
+    if(prev)prev.addEventListener('click',function(){go(cur-1);});
+    if(next)next.addEventListener('click',function(){go(cur+1);});
+    dots.forEach(function(d,i){d.addEventListener('click',function(){go(i);});});
+  });
+})();
+</script>"""
+
+
+def html_shell(
+    body: str, name: str, brand_name: str, theme: Theme,
+    template_id: str = "modern", campaign: str = "",
+    seo_title: str = "", seo_description: str = "",
+    og_image: str = "", analytics_config: dict = None,
+    custom_css: str = "",
+) -> str:
     P, S, A = theme.P, theme.S, theme.A
     BG, TX = theme.BG, theme.TX
     HF, BF = theme.HF, theme.BF
     P_light = theme.P_light
 
     # Clean the page title
-    page_title = _strip_markdown(name or brand_name or "Landing Page")
+    page_title = _strip_markdown(seo_title or name or brand_name or "Landing Page")
     low_title = page_title.lower().strip()
     if (low_title in _TITLE_GARBAGE
             or any(k in low_title for k in _TITLE_META_KEYWORDS)
             or len(page_title) < 3):
         page_title = brand_name or "Landing Page"
 
-    # Get CSS from template system
-    from app.use_cases.landing.templates import get_template_css
-    css = get_template_css(template_id, P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten)
+    # Get CSS: AI-generated custom CSS takes priority; template CSS is the fallback
+    from app.use_cases.landing.templates import get_template_css, _css_base
+    if custom_css:
+        css = _css_base(P, S, A, BG, TX, HF, BF, P_light) + "\n" + custom_css
+    else:
+        css = get_template_css(template_id, P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten)
 
     # For elegant template, override fonts in the Google Fonts link
     if template_id == "elegant":
         HF = "Playfair Display"
         BF = "Lora"
 
+    safe_brand = _e(brand_name)
+    og_title = _e(page_title)
+    og_desc = _e(seo_description or campaign or f"{brand_name} — Landing page de alta conversión")
+    og_img_tag = f'<meta property="og:image" content="{_e(og_image)}">\n<meta name="twitter:image" content="{_e(og_image)}">' if og_image else ""
+
+    # Analytics injection
+    analytics_scripts = ""
+    ac = analytics_config or {}
+    if ac.get("gtm_id"):
+        gtm = _e(ac["gtm_id"])
+        analytics_scripts += f"""<script>(function(w,d,s,l,i){{w[l]=w[l]||[];w[l].push({{'gtm.start':new Date().getTime(),event:'gtm.js'}});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);}})(window,document,'script','dataLayer','{gtm}');</script>"""
+    if ac.get("ga4_id"):
+        ga4 = _e(ac["ga4_id"])
+        analytics_scripts += f"""<script async src="https://www.googletagmanager.com/gtag/js?id={ga4}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','{ga4}');</script>"""
+    if ac.get("meta_pixel_id"):
+        px = _e(ac["meta_pixel_id"])
+        analytics_scripts += f"""<script>!function(f,b,e,v,n,t,s){{if(f.fbq)return;n=f.fbq=function(){{n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)}};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','{px}');fbq('track','PageView');</script>"""
+
+    gtm_noscript = ""
+    if ac.get("gtm_id"):
+        gtm_noscript = f'<noscript><iframe src="https://www.googletagmanager.com/ns.html?id={_e(ac["gtm_id"])}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>'
+
+    # Lead form CSS
+    lead_form_css = """
+.lead-form-section { padding: 80px 0; }
+.lead-form { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.lf-field { display: flex; flex-direction: column; gap: 6px; }
+.lf-field label { font-size: .875rem; font-weight: 600; color: var(--tx); }
+.lf-field input, .lf-field textarea { padding: 12px 16px; border: 1.5px solid var(--bd); border-radius: 10px;
+  font-size: 1rem; background: var(--bg); color: var(--tx); transition: border-color .2s; width: 100%; }
+.lf-field input:focus, .lf-field textarea:focus { outline: none; border-color: var(--p); }
+.lf-submit { width: 100%; margin-top: 8px; }
+"""
+
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{_e(page_title)}</title>
+<title>{og_title}</title>
+<meta name="description" content="{og_desc}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{og_title}">
+<meta property="og:description" content="{og_desc}">
+<meta property="og:site_name" content="{safe_brand}">
+{og_img_tag}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{og_title}">
+<meta name="twitter:description" content="{og_desc}">
+{analytics_scripts}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family={HF.replace(' ','+')}\
 :wght@300;400;500;600;700;800;900&family={BF.replace(' ','+')}\
 :ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
 {css}
+{lead_form_css}
 </style>
 </head>
 <body>
+{gtm_noscript}
+<nav class="sticky-nav" aria-label="Navigation">
+  <span class="nav-brand">{safe_brand}</span>
+  <a href="#cta-final" class="nav-cta">Empezar ahora →</a>
+</nav>
 {body}
-<div class="footer">&copy; 2026 {_e(brand_name)} &middot; Powered by NEXOM</div>
+<div class="footer">&copy; 2026 {safe_brand} &middot; Powered by NEXOM</div>
+{_JS_BLOCK}
 </body>
 </html>"""

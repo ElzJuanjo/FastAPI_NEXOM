@@ -1,8 +1,8 @@
-"""delete store_dev agent
+"""improve landings
 
-Revision ID: ce5b10497aed
+Revision ID: e48e59f98f67
 Revises: 
-Create Date: 2026-04-17 12:26:08.541280
+Create Date: 2026-04-27 16:49:29.285898
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'ce5b10497aed'
+revision: str = 'e48e59f98f67'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -225,10 +225,16 @@ def upgrade() -> None:
     sa.Column('brand_id', sa.UUID(as_uuid=False), nullable=True),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('campaign', sa.String(length=255), nullable=True),
-    sa.Column('status', sa.Enum('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', name='assetstatus'), nullable=False),
+    sa.Column('status', sa.Enum('DRAFT', 'PUBLISHED', name='landingpagestatus'), nullable=False),
     sa.Column('published_url', sa.String(length=512), nullable=True),
     sa.Column('published_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('template', sa.String(length=50), nullable=True, comment='CSS template: modern | minimal | bold | ecommerce | dark | elegant'),
+    sa.Column('seo_title', sa.String(length=255), nullable=True),
+    sa.Column('seo_description', sa.Text(), nullable=True),
+    sa.Column('og_image', sa.String(length=512), nullable=True),
+    sa.Column('analytics_config', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='{"ga4_id":"G-XXX","meta_pixel_id":"XXX","gtm_id":"GTM-XXX"}'),
+    sa.Column('custom_css', sa.Text(), nullable=True, comment='AI-generated bespoke CSS for this landing page'),
+    sa.Column('use_custom_css', sa.Boolean(), nullable=False),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -330,9 +336,19 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_creative_batches_deleted_at'), 'creative_batches', ['deleted_at'], unique=False)
+    op.create_table('landing_leads',
+    sa.Column('landing_page_id', sa.UUID(as_uuid=False), nullable=False),
+    sa.Column('section_id', sa.UUID(as_uuid=False), nullable=True),
+    sa.Column('data', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Form submission fields as key-value pairs'),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
+    sa.ForeignKeyConstraint(['landing_page_id'], ['landing_pages.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_landing_leads_lp_id', 'landing_leads', ['landing_page_id'], unique=False)
     op.create_table('landing_page_sections',
     sa.Column('landing_page_id', sa.UUID(as_uuid=False), nullable=False),
-    sa.Column('section_type', sa.Enum('HERO', 'SOCIAL_PROOF', 'PROBLEM', 'SOLUTION', 'FEATURES', 'BENEFITS', 'TRANSFORMATION', 'OFFER', 'TESTIMONIALS', 'PRICING', 'FAQ', 'CTA', 'GALLERY', 'CUSTOM', 'PRODUCT_GALLERY', 'SPECS', 'VIDEO_EMBED', 'COMPARISON', 'COUNTDOWN', 'TRUST_BADGES', 'BRAND_STORY', name='landingsectiontype'), nullable=False),
+    sa.Column('section_type', sa.Enum('HERO', 'SOCIAL_PROOF', 'PROBLEM', 'SOLUTION', 'FEATURES', 'BENEFITS', 'TRANSFORMATION', 'OFFER', 'TESTIMONIALS', 'PRICING', 'FAQ', 'CTA', 'GALLERY', 'CUSTOM', 'PRODUCT_GALLERY', 'SPECS', 'VIDEO_EMBED', 'COMPARISON', 'COUNTDOWN', 'TRUST_BADGES', 'BRAND_STORY', 'STATS_BAR', 'LOGO_WALL', 'CASE_STUDY', 'URGENCY_BANNER', 'PROCESS_STEPS', 'LEAD_FORM', name='landingsectiontype'), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=True),
     sa.Column('body', sa.Text(), nullable=True),
     sa.Column('cta_text', sa.String(length=255), nullable=True),
@@ -342,6 +358,7 @@ def upgrade() -> None:
     sa.Column('content', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('image_url', sa.String(length=512), nullable=True, comment='Primary image URL for this section'),
     sa.Column('images', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='Array of image URLs for gallery-type sections'),
+    sa.Column('ab_group', sa.String(length=10), nullable=True, comment="A/B variant: 'a' or 'b'"),
     sa.Column('id', sa.UUID(as_uuid=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -389,6 +406,8 @@ def downgrade() -> None:
     op.drop_table('creatives')
     op.drop_index(op.f('ix_landing_page_sections_deleted_at'), table_name='landing_page_sections')
     op.drop_table('landing_page_sections')
+    op.drop_index('ix_landing_leads_lp_id', table_name='landing_leads')
+    op.drop_table('landing_leads')
     op.drop_index(op.f('ix_creative_batches_deleted_at'), table_name='creative_batches')
     op.drop_table('creative_batches')
     op.drop_index('ix_copy_assets_status', table_name='copy_assets')

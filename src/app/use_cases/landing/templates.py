@@ -88,7 +88,10 @@ h1,h2,h3,h4{{font-family:var(--hf);line-height:1.15;font-weight:700;letter-spaci
 .footer{{text-align:center;padding:44px 28px;font-size:.78rem;color:var(--tx-muted);border-top:1px solid var(--bd)}}
 @keyframes fadeUp{{from{{opacity:0;transform:translateY(24px)}}to{{opacity:1;transform:translateY(0)}}}}
 .hero h1,.hero .subtitle,.hero .btn,.hero .trust-line{{animation:fadeUp .8s cubic-bezier(.16,1,.3,1) backwards}}
-.hero .subtitle{{animation-delay:.1s}}.hero .btn{{animation-delay:.2s}}.hero .trust-line{{animation-delay:.3s}}"""
+.hero .subtitle{{animation-delay:.1s}}.hero .btn{{animation-delay:.2s}}.hero .trust-line{{animation-delay:.3s}}
+section{{opacity:0;transform:translateY(40px);transition:opacity .75s cubic-bezier(.16,1,.3,1),transform .75s cubic-bezier(.16,1,.3,1)}}
+section.revealed{{opacity:1;transform:translateY(0)}}
+.hero{{opacity:1;transform:none}}"""
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -224,7 +227,83 @@ def _css_shared_components(P, S, A, BG, TX, HF, BF, P_light, _rgba):
 .gc-next{{right:16px}}
 .gc-dots{{display:flex;justify-content:center;gap:8px;margin-top:16px}}
 .gc-dot{{width:10px;height:10px;border-radius:50%;border:2px solid var(--bd);background:transparent;cursor:pointer;padding:0;transition:all .2s}}
-.gc-dot.active{{background:var(--p);border-color:var(--p);transform:scale(1.2)}}"""
+.gc-dot.active{{background:var(--p);border-color:var(--p);transform:scale(1.2)}}
+/* ── Hero dual CTA ── */
+.hero-ctas{{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:8px}}
+.btn-secondary{{background:transparent!important;color:var(--p)!important;border:2px solid var(--p)!important;box-shadow:none!important}}
+.btn-secondary:hover{{background:{_rgba(P,0.08)}!important;transform:translateY(-2px)}}
+/* ── Testimonial metric badge ── */
+.testimonial-metric{{display:inline-block;font-size:.78rem;font-weight:700;color:var(--p);background:{_rgba(P,0.1)};border:1px solid {_rgba(P,0.2)};border-radius:60px;padding:4px 14px;margin-bottom:10px}}
+/* ── Testimonial avatar image ── */
+.author-avatar-img{{width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0}}
+/* ── Logo wall / media strip ── */
+.logo-wall-strip{{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:24px 40px;padding:32px 0}}
+.logo-wall-strip img{{height:32px;max-width:110px;object-fit:contain;filter:grayscale(1);opacity:.5;transition:all .3s}}
+.logo-wall-strip img:hover{{filter:none;opacity:1}}
+.media-badge{{padding:6px 16px;border:1px solid var(--bd);border-radius:999px;font-size:.78rem;font-weight:600;color:var(--tx);opacity:.55}}
+/* ── Stats bar (Fase 2) ── */
+.stats-bar-section{{padding:60px 0;border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)}}
+.stats-bar{{display:flex;flex-wrap:wrap;justify-content:center;gap:0}}
+.stat-item{{flex:1;min-width:160px;padding:36px 28px;text-align:center;border-right:1px solid var(--bd)}}
+.stat-item:last-child{{border-right:none}}
+.stat-value{{font-size:clamp(2rem,5vw,3.6rem);font-weight:900;font-family:var(--hf);color:var(--p);line-height:1}}
+.stat-icon{{font-size:1.6rem;margin-bottom:8px}}
+.stat-label{{font-size:.82rem;color:var(--tx);opacity:.65;margin-top:8px}}
+/* ── Logo wall section (Fase 2) ── */
+.logo-wall-section{{padding:60px 0}}
+.logo-wall-title{{text-align:center;font-size:.9rem;font-weight:600;color:var(--tx);opacity:.5;text-transform:uppercase;letter-spacing:.1em;margin-bottom:28px}}
+/* ── Case study (Fase 2) ── */
+.case-study-section{{padding:100px 0}}
+.case-study-card{{display:grid;grid-template-columns:1fr 1.4fr;gap:56px;align-items:center;padding:56px 64px;border-radius:24px;background:{_rgba(P,0.04)};border:1px solid {_rgba(P,0.12)}}}
+.case-metric-value{{font-size:clamp(3rem,8vw,5.5rem);font-weight:900;font-family:var(--hf);color:var(--p);line-height:1}}
+.case-metric-label{{font-size:1.1rem;font-weight:600;color:var(--tx);margin-top:4px}}
+.case-metric-period{{font-size:.85rem;color:var(--tx);opacity:.6;margin-top:2px}}
+.case-narrative{{color:var(--tx-secondary);line-height:1.8;margin-top:20px;font-size:.97rem}}
+.case-cta-link{{display:inline-flex;align-items:center;gap:6px;color:var(--p);font-weight:700;font-size:.88rem;margin-top:20px;text-decoration:none}}
+.case-cta-link:hover{{text-decoration:underline}}
+.founder-card{{display:flex;align-items:center;gap:14px;margin-top:28px;padding-top:24px;border-top:1px solid var(--bd)}}
+.founder-img{{width:52px;height:52px;border-radius:50%;object-fit:cover;flex-shrink:0}}
+.founder-initials{{width:52px;height:52px;border-radius:50%;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;font-family:var(--hf);flex-shrink:0}}
+.founder-name{{font-weight:700;font-size:.95rem;color:var(--tx)}}
+.founder-title{{font-size:.8rem;color:var(--tx-secondary)}}
+/* ── Urgency banner (Fase 2) ── */
+.urgency-banner{{background:var(--p);color:#fff;padding:10px 24px;display:flex;align-items:center;justify-content:center;gap:16px;font-size:.85rem;font-weight:600;position:sticky;top:0;z-index:101;transition:transform .3s;flex-wrap:wrap}}
+.urgency-banner.dismissed{{transform:translateY(-100%);pointer-events:none}}
+.ub-cta{{background:rgba(255,255,255,.2);padding:4px 14px;border-radius:99px;white-space:nowrap;text-decoration:none;color:#fff;transition:background .2s}}
+.ub-cta:hover{{background:rgba(255,255,255,.35)}}
+.ub-close{{background:none;border:none;color:#fff;cursor:pointer;font-size:1.2rem;margin-left:auto;opacity:.7;line-height:1;padding:0 4px}}
+.ub-countdown{{display:inline-flex;gap:4px;align-items:center;font-variant-numeric:tabular-nums;font-weight:800;font-family:var(--hf)}}
+/* ── Process steps (Fase 2) ── */
+.process-steps-section{{padding:100px 0}}
+.steps-flow{{display:flex;gap:0;overflow:visible;position:relative}}
+.step-item{{flex:1;text-align:center;padding:0 16px;position:relative}}
+.step-item:not(:last-child)::after{{content:'';position:absolute;top:27px;left:calc(50% + 30px);right:calc(-50% + 30px);height:2px;background:var(--bd);z-index:0}}
+.step-circle{{width:56px;height:56px;border-radius:50%;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;margin:0 auto 16px;font-family:var(--hf);position:relative;z-index:1;box-shadow:0 4px 16px {_rgba(P,0.35)}}}
+.step-icon{{font-size:1.5rem;display:block;margin-bottom:4px}}
+.step-title{{font-size:.95rem;font-weight:700;color:var(--tx);margin-bottom:8px}}
+.step-desc{{font-size:.82rem;color:var(--tx-secondary);line-height:1.7}}
+/* ── Sticky nav ── */
+.sticky-nav{{position:fixed;top:0;left:0;right:0;z-index:100;transform:translateY(-100%);transition:transform .4s cubic-bezier(.16,1,.3,1);background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--bd);padding:10px 28px;display:flex;align-items:center;justify-content:space-between}}
+.scrolled .sticky-nav{{transform:translateY(0)}}
+.sticky-nav .nav-brand{{font-family:var(--hf);font-weight:700;font-size:.92rem;color:var(--tx)}}
+.sticky-nav .nav-cta{{padding:7px 20px;background:var(--p);color:#fff;border-radius:8px;font-size:.8rem;font-weight:700;text-decoration:none;transition:opacity .2s}}
+.sticky-nav .nav-cta:hover{{opacity:.88}}
+/* ── Problem section ── */
+.problem-section{{padding:100px 0;background:var(--bg-alt)}}
+.problem-body{{max-width:700px}}
+.problem-body p{{font-size:1rem;color:var(--tx-secondary);line-height:1.9;margin-bottom:20px}}
+.pain-hook{{font-size:1.06rem;font-weight:600;color:var(--tx);line-height:1.85;border-left:3px solid var(--p);padding:20px 28px;background:var(--bg);border-radius:0 var(--r) var(--r) 0;margin:28px 0}}
+/* ── Solution block ── */
+.solution-block{{max-width:700px}}
+.solution-body p{{font-size:1rem;color:var(--tx-secondary);line-height:1.9;margin-bottom:20px}}
+.solution-lead{{font-size:1.06rem;color:var(--tx);font-weight:500;line-height:1.85;margin-bottom:24px}}
+/* ── Scroll entrance animations ── */
+.reveal{{opacity:0;transform:translateY(28px);transition:opacity .65s cubic-bezier(.4,0,.2,1),transform .65s cubic-bezier(.4,0,.2,1)}}
+.reveal.revealed{{opacity:1;transform:translateY(0)}}
+.reveal-left{{opacity:0;transform:translateX(-32px);transition:opacity .65s cubic-bezier(.4,0,.2,1),transform .65s cubic-bezier(.4,0,.2,1)}}
+.reveal-left.revealed{{opacity:1;transform:translateX(0)}}
+.reveal-scale{{opacity:0;transform:scale(.96);transition:opacity .5s ease,transform .5s ease}}
+.reveal-scale.revealed{{opacity:1;transform:scale(1)}}"""
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -239,7 +318,13 @@ _SHARED_RESPONSIVE = """\
   .timer-num{font-size:1.8rem;padding:8px 14px;min-width:56px}
   .gc-arrow{width:36px;height:36px;font-size:1.3rem}
   .gc-prev{left:8px}
-  .gc-next{right:8px}"""
+  .gc-next{right:8px}
+  .hero-ctas{flex-direction:column;align-items:center}
+  .stat-item{border-right:none;border-bottom:1px solid var(--bd);min-width:140px}
+  .stat-item:last-child{border-bottom:none}
+  .case-study-card{grid-template-columns:1fr;gap:32px;padding:32px 24px}
+  .steps-flow{flex-direction:column;gap:28px}
+  .step-item:not(:last-child)::after{display:none}"""
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -315,6 +400,19 @@ def _css_modern(P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten):
 .cta-final .urgency-badge{{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:60px;font-size:.8rem;font-weight:600;margin-bottom:28px}}
 .cta-final h2{{font-size:clamp(1.8rem,4.5vw,2.8rem);margin-bottom:20px;font-weight:900;letter-spacing:-.04em;background:linear-gradient(160deg,#fff 30%,rgba(255,255,255,.65));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
 .cta-final p{{color:rgba(255,255,255,.65);margin-bottom:40px;font-size:1.05rem;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.85}}
+@keyframes pulse-ring{{0%{{box-shadow:0 4px 20px {p_glow},0 0 0 0 {_rgba(P,0.45)}}}70%{{box-shadow:0 12px 40px {p_glow},0 0 0 14px {_rgba(P,0)}}}100%{{box-shadow:0 4px 20px {p_glow},0 0 0 0 {_rgba(P,0)}}}}}
+.hero .btn-primary{{animation:pulse-ring 2.5s ease-out infinite}}
+.hero .btn-primary:hover{{animation:none}}
+.stats-bar-section{{background:#06040F;border-top:none;border-bottom:none}}
+.stats-bar-section .stat-value{{color:var(--a)}}
+.stats-bar-section .stat-label{{color:rgba(255,255,255,.5)}}
+.stats-bar-section .stat-item{{border-color:rgba(255,255,255,.08)}}
+.case-study-section{{background:linear-gradient(180deg,var(--bg-alt),var(--bg))}}
+.logo-wall-section{{background:#06040F;padding:48px 0}}
+.logo-wall-section .logo-wall-title{{color:rgba(255,255,255,.4)}}
+.logo-wall-section .media-badge{{border-color:rgba(255,255,255,.12);color:rgba(255,255,255,.5)}}
+.logo-wall-strip img{{filter:invert(1) grayscale(1);opacity:.35}}
+.logo-wall-strip img:hover{{opacity:.7}}
 @media(max-width:768px){{
   .hero{{padding:100px 0 80px}}
   .benefits-grid,.testimonials-grid{{grid-template-columns:1fr}}
@@ -393,6 +491,61 @@ def _css_minimal(P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten):
 .cta-final .urgency-badge{{background:transparent;border:1px solid var(--bd);color:var(--tx-muted);border-radius:0;font-size:.7rem;padding:6px 16px;margin-bottom:36px;letter-spacing:.14em;text-transform:uppercase;display:inline-block}}
 .cta-final h2{{font-size:clamp(1.8rem,5vw,3rem);font-weight:200;margin-bottom:24px;letter-spacing:-.05em;max-width:16ch}}
 .cta-final p{{color:var(--tx-muted);margin-bottom:48px;font-size:1.02rem;max-width:44ch;margin-left:0;line-height:2}}
+/* Minimal overrides: Problem */
+.problem-section{{background:var(--bg);border-top:1px solid var(--bd);padding:120px 0}}
+.pain-hook{{border-left:1px solid var(--p);background:transparent;font-weight:400;font-style:italic;border-radius:0;padding:4px 0 4px 28px;margin:32px 0}}
+/* Minimal overrides: Solution */
+.solution-section{{border-top:1px solid var(--bd);padding:120px 0}}
+.solution-block{{max-width:600px;margin:0}}
+.solution-lead{{font-weight:400;font-style:italic}}
+/* Minimal overrides: Stats bar */
+.stats-bar-section{{background:var(--bg-alt);border-color:var(--bd)}}
+.stat-value{{color:var(--tx);font-weight:200;letter-spacing:-.06em}}
+.stat-label{{text-transform:uppercase;letter-spacing:.12em;font-size:.7rem}}
+.stat-icon{{font-size:1rem;opacity:.4}}
+/* Minimal overrides: Process steps */
+.process-steps-section{{padding:120px 0;border-top:1px solid var(--bd)}}
+.step-circle{{background:var(--tx);color:var(--bg);box-shadow:none;font-size:.85rem;width:44px;height:44px}}
+.step-item:not(:last-child)::after{{background:var(--bd);height:1px}}
+.step-title{{font-weight:600;letter-spacing:.02em;font-size:.88rem;text-transform:uppercase}}
+.step-desc{{color:var(--tx-muted);font-size:.82rem}}
+/* Minimal overrides: Logo wall */
+.logo-wall-section{{border-top:1px solid var(--bd);padding:48px 0}}
+.logo-wall-title{{font-weight:400}}
+.media-badge{{background:transparent;border:none;font-weight:400;letter-spacing:.1em;font-size:.72rem;opacity:.45;text-transform:uppercase}}
+.logo-wall-strip img{{filter:grayscale(1);opacity:.3}}
+/* Minimal overrides: Trust badges */
+.trust-badges-section{{padding:40px 0}}
+.trust-badge-item{{gap:10px}}
+.badge-icon{{font-size:1rem;opacity:.6}}
+.badge-text strong{{font-weight:600;font-size:.8rem;letter-spacing:.04em;text-transform:uppercase}}
+.badge-text span{{font-size:.72rem;letter-spacing:.04em}}
+/* Minimal overrides: Case study */
+.case-study-section{{border-top:1px solid var(--bd)}}
+.case-study-card{{background:transparent;border:1px solid var(--bd);border-radius:0;padding:56px 48px}}
+.case-metric-value{{font-weight:200;letter-spacing:-.08em;color:var(--tx)}}
+.case-metric-label{{font-weight:400;font-size:1rem}}
+.founder-card{{border-top:1px solid var(--bd)}}
+.founder-initials{{background:var(--tx);font-weight:200}}
+/* Minimal overrides: Urgency banner */
+.urgency-banner{{font-weight:400;letter-spacing:.06em;background:var(--tx);color:var(--bg)}}
+.ub-cta{{background:rgba(255,255,255,.12);letter-spacing:.06em}}
+/* Minimal overrides: Countdown */
+.countdown-section{{background:var(--bg-alt);color:var(--tx);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)}}
+.countdown-section h2{{color:var(--tx)}}
+.countdown-section p{{color:var(--tx-secondary)}}
+.timer-num{{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:0;font-weight:200;letter-spacing:-.04em}}
+.timer-label{{color:var(--tx-muted);letter-spacing:.14em}}
+/* Minimal overrides: Comparison */
+.comparison-table th{{font-weight:600;letter-spacing:.1em;font-size:.75rem}}
+.us-col{{background:{_rgba(P,0.03)};color:var(--tx)}}
+/* Minimal overrides: FAQ */
+.faq-item h3{{font-size:.95rem;font-weight:600;letter-spacing:.02em}}
+.faq-item h3::before{{background:var(--tx);opacity:.2}}
+/* Minimal overrides: Offer */
+.offer-card{{border-radius:0;border-width:1px;border-color:var(--bd)}}
+.offer-card::before{{background:var(--tx);height:2px}}
+.price-new{{font-weight:200;letter-spacing:-.06em}}
 @media(max-width:768px){{
   .hero{{padding:100px 0 80px}}
   .benefits-grid,.testimonials-grid{{grid-template-columns:1fr}}
@@ -401,7 +554,7 @@ def _css_minimal(P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten):
   .proof-item{{border-right:none;border-bottom:1px solid var(--bd);padding:20px 0;margin:0;width:100%}}
   .proof-item:last-child{{border-bottom:none}}
   .offer-card{{padding:36px 28px}}
-  .section-text,.solution-section,.benefits-section,.transformation,.offer-section,.testimonials-section,.faq-section{{padding:72px 0}}
+  .section-text,.solution-section,.benefits-section,.transformation,.offer-section,.testimonials-section,.faq-section,.problem-section{{padding:72px 0}}
   {_SHARED_RESPONSIVE}
 }}"""
     return base + "\n" + shared + "\n" + theme
@@ -468,6 +621,29 @@ def _css_bold(P, S, A, BG, TX, HF, BF, P_light, _rgba, _lighten):
 .cta-final .urgency-badge{{background:rgba(0,0,0,.25);border:3px solid rgba(255,255,255,.3);border-radius:0;font-size:.76rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em;padding:10px 24px;margin-bottom:36px;display:inline-block}}
 .cta-final h2{{font-size:clamp(2.2rem,6vw,4rem);font-weight:900;margin-bottom:28px;letter-spacing:-.04em;text-transform:uppercase;color:#fff;max-width:16ch}}
 .cta-final p{{color:rgba(255,255,255,.75);margin-bottom:52px;font-size:1.1rem;max-width:44ch;margin-left:0;line-height:1.85}}
+/* ── Bold overrides: 5 new section types ── */
+.stats-bar-section{{padding:0;background:{TX};border-top:3px solid {TX};border-bottom:3px solid {TX}}}
+.stat-item{{border-right:3px solid rgba(255,255,255,.15);padding:48px 40px}}
+.stat-item:last-child{{border-right:none}}
+.stat-value{{color:{BG};text-shadow:none}}
+.stat-label{{color:rgba(255,255,255,.55);opacity:1}}
+.logo-wall-section{{background:{BG};border-top:3px solid {TX};border-bottom:3px solid {TX}}}
+.logo-wall-strip img{{filter:none;opacity:1;mix-blend-mode:multiply}}
+.media-badge{{border-radius:0;border:3px solid {TX};font-weight:900;text-transform:uppercase;letter-spacing:.06em}}
+.case-study-card{{border-radius:0;border:3px solid {TX};background:{TX}}}
+.case-metric-value{{color:{P};font-size:clamp(4rem,10vw,7rem)}}
+.case-metric-label{{color:{BG}}}
+.case-metric-period{{color:rgba(255,255,255,.55);opacity:1}}
+.case-narrative{{color:rgba(255,255,255,.7)}}
+.case-cta-link{{color:{A}}}
+.founder-card{{border-top:1px solid rgba(255,255,255,.15)}}
+.founder-name{{color:{BG}}}
+.founder-title{{color:rgba(255,255,255,.5)}}
+.urgency-banner{{background:{TX};border-bottom:3px solid {P};border-radius:0}}
+.ub-cta{{background:rgba(255,255,255,.12);border-radius:0}}
+.step-circle{{border-radius:0;box-shadow:4px 4px 0 {TX}}}
+.step-item:not(:last-child)::after{{background:{TX};height:3px}}
+.step-title{{text-transform:uppercase;letter-spacing:.04em}}
 @media(max-width:768px){{
   .hero{{padding:120px 0 100px}}
   .benefits-grid,.testimonials-grid{{grid-template-columns:1fr}}
@@ -576,6 +752,22 @@ body{{background:{BG_D};color:{TX_D};--bd:{BD_D};--bg-alt:{BG_ALT_D};--bg-warm:{
 .countdown-section{{background:linear-gradient(135deg,{BG_ALT_D},var(--p))}}
 .comparison-table-wrap{{border-color:{BD_D}}}
 .comparison-table th,.comparison-table td{{border-color:{BD_D}}}
+/* ── Dark overrides: 5 new section types ── */
+.stats-bar-section{{background:{BG_ALT_D};border-color:{BD_D}}}
+.stat-item{{border-right-color:{BD_D}}}
+.stat-value{{text-shadow:0 0 20px {p_glow}}}
+.logo-wall-section{{background:{BG_ALT_D}}}
+.logo-wall-strip img{{filter:grayscale(1) brightness(.6);opacity:.45}}
+.logo-wall-strip img:hover{{filter:brightness(1);opacity:.85}}
+.media-badge{{border-color:{BD_D};background:{BG_WRM_D};color:{TX_D};opacity:.7}}
+.case-study-card{{background:{BG_ALT_D};border-color:{BD_D}}}
+.case-metric-value{{text-shadow:0 0 30px {p_glow}}}
+.founder-card{{border-top-color:{BD_D}}}
+.founder-initials{{box-shadow:0 0 12px {_rgba(P,0.3)}}}
+.urgency-banner{{background:linear-gradient(90deg,{BG_ALT_D} 0%,{S} 50%,{BG_ALT_D} 100%);border-bottom:1px solid {BD_D};box-shadow:0 2px 20px {_rgba(P,0.15)}}}
+.ub-cta{{border:1px solid rgba(255,255,255,.12);border-radius:8px}}
+.step-circle{{background:linear-gradient(135deg,{P},{A});box-shadow:0 0 20px {_rgba(P,0.4)},0 4px 16px rgba(0,0,0,.5)}}
+.step-item:not(:last-child)::after{{background:{BD_D}}}
 @media(max-width:768px){{
   .hero{{padding:100px 0 80px}}
   .benefits-grid,.testimonials-grid{{grid-template-columns:1fr}}
@@ -676,6 +868,27 @@ h1,h2,h3,h4{{font-family:'{HF_E}',Georgia,serif;letter-spacing:-.01em;font-weigh
 .specs-table-wrap{{border-color:#E8E0D5}}
 .specs-table tr{{border-color:#E8E0D5}}
 .trust-badges-section{{border-color:#E8E0D5}}
+/* ── Elegant overrides: 5 new section types ── */
+.stats-bar-section{{background:{gold_lt};border-color:#E8E0D5}}
+.stat-item{{border-right-color:#E8E0D5}}
+.stat-value{{color:{gold};font-style:italic}}
+.stat-label{{font-family:'{BF_E}',Georgia,serif;font-weight:300;letter-spacing:.12em;text-transform:uppercase;opacity:.7}}
+.logo-wall-section{{background:{cream}}}
+.logo-wall-strip img{{filter:grayscale(1) sepia(.2);opacity:.4}}
+.logo-wall-strip img:hover{{filter:sepia(.1) saturate(.6);opacity:.75}}
+.media-badge{{border-color:{gold_mid};font-family:'{BF_E}',Georgia,serif;font-style:italic;font-weight:300;letter-spacing:.08em}}
+.case-study-card{{background:{gold_lt};border-color:{gold_mid};border-width:1px;border-radius:0}}
+.case-metric-value{{color:{gold};font-family:'{HF_E}',Georgia,serif;font-style:italic;font-weight:400}}
+.case-metric-label,.case-metric-period{{font-family:'{BF_E}',Georgia,serif;font-weight:300}}
+.case-narrative{{font-family:'{BF_E}',Georgia,serif;font-weight:300;font-style:italic}}
+.founder-card{{border-top-color:#E8E0D5}}
+.founder-initials{{background:{gold_mid}}}
+.urgency-banner{{background:{ink};border-bottom:1px solid {gold_mid}}}
+.ub-cta{{background:rgba(250,248,244,.1);border-radius:0}}
+.step-circle{{background:{gold};box-shadow:0 4px 16px rgba(184,150,107,.35)}}
+.step-item:not(:last-child)::after{{background:{gold_mid}}}
+.step-title{{font-family:'{HF_E}',Georgia,serif;font-style:italic;font-weight:400}}
+.step-icon{{color:{gold}}}
 @media(max-width:768px){{
   .hero{{padding:120px 0 100px}}
   .benefits-grid,.testimonials-grid{{grid-template-columns:1fr}}
@@ -755,6 +968,15 @@ body{{--bd:{warm_bd};--bg-alt:{warm_bg};--bg-warm:#F0EBE3;--tx-secondary:#6B6056
 .cta-final .urgency-badge{{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);border-radius:100px;font-size:.8rem;font-weight:700;padding:8px 20px;margin-bottom:24px;display:inline-block;animation:trustPulse 2.5s ease-in-out infinite}}
 .cta-final h2{{font-size:clamp(1.6rem,3.5vw,2.4rem);font-weight:800;margin-bottom:16px}}
 .cta-final p{{color:rgba(255,255,255,.8);margin-bottom:36px;font-size:1rem;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.8}}
+.stats-bar-section{{background:var(--p);border-top:none;border-bottom:none}}
+.stats-bar-section .stat-value{{color:#fff;font-size:clamp(2rem,5vw,3.2rem)}}
+.stats-bar-section .stat-label{{color:rgba(255,255,255,.7)}}
+.stats-bar-section .stat-item{{border-color:rgba(255,255,255,.15)}}
+.testimonial-metric{{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);color:#16a34a}}
+.case-study-section{{background:{warm_bg};border-top:1px solid {warm_bd};border-bottom:1px solid {warm_bd}}}
+.case-study-card{{background:#fff;border-color:{warm_bd}}}
+.case-metric-value{{color:var(--p)}}
+.logo-wall-section{{background:#fff;border-top:1px solid {warm_bd};border-bottom:1px solid {warm_bd}}}
 @media(max-width:768px){{
   .hero{{padding:72px 0;text-align:center}}
   .hero .subtitle{{margin:0 auto 36px}}

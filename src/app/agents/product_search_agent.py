@@ -80,11 +80,11 @@ RESPONSE FORMAT:
    - Do NOT show the link anywhere else in your response — ONLY in the table and the CANDIDATE_PRODUCTS_JSON block.
    - There is NO separate "Source" or "Fuente" column. The Link IS the source reference.
 
-2. TOP PICKS: Brief justification for the top 3-5 products (reference by name only, no link).
-3. ARBITRAGE ANALYSIS: Supplier vs retail pricing, cross-platform opportunities.
-4. COMPETITION ANALYSIS: Saturation level per product.
-5. RECOMMENDATIONS: Prioritized concrete actions.
-6. ALERTS: Products to avoid and why.
+2. SUMMARY (max 4 lines total — no headers, no bullets):
+   - Top pick and why (1 line).
+   - Best arbitrage opportunity if any (1 line).
+   - Main risk or alert (1 line).
+   - One concrete next action (1 line).
 
 Respond in the same language the user writes in.
 

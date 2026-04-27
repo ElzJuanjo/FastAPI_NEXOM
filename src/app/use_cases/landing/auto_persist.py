@@ -16,7 +16,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.entities.landing_page import LandingPage, LandingPageSection
-from domain.entities.base import AssetStatus, LandingSectionType
+from domain.entities.base import LandingPageStatus, LandingSectionType
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +29,25 @@ def is_landing_content(content: str) -> bool:
     if not content or len(content) < 200:
         return False
 
-    # Fast path: JSON block present
-    if "<!--LANDING_JSON" in content:
+    # Fast path: structured block present
+    if "<!--LANDING_JSON" in content or "<!--LANDING_CSS" in content:
         return True
 
     # Heuristic fallback
     from app.use_cases.landing.section_parser import is_landing_content as _legacy_check
     return _legacy_check(content)
+
+
+def _extract_landing_css(content: str) -> str | None:
+    """
+    Extract AI-generated CSS from <!--LANDING_CSS\n...\n--> block.
+    Returns the raw CSS string or None if not present.
+    """
+    match = re.search(r'<!--\s*LANDING_CSS\s*\n(.*?)\n\s*-->', content, re.DOTALL)
+    if not match:
+        return None
+    css = match.group(1).strip()
+    return css if len(css) > 50 else None
 
 
 def _extract_landing_json(content: str) -> dict | None:
@@ -101,6 +113,10 @@ def _normalize_sections(data: dict) -> list[dict]:
         if content and not isinstance(content, dict):
             content = None
 
+        image_url = sec.get("image_url")
+        if isinstance(image_url, str):
+            image_url = image_url.strip()[:512] or None
+
         results.append({
             "section_type": section_type,
             "title": title,
@@ -110,6 +126,7 @@ def _normalize_sections(data: dict) -> list[dict]:
             "order": order,
             "is_visible": True,
             "content": content,
+            "image_url": image_url,
         })
 
     return results
@@ -175,16 +192,38 @@ async def auto_persist_landing_sections(
             if conv_title:
                 lp_name = conv_title[:255]
 
+    # Auto-enrich: find reference image for hero section (free, no API key needed)
+    hero_sec = next(
+        (s for s in sections_data if s.get("section_type") == "hero" and not s.get("image_url")),
+        None,
+    )
+    if hero_sec:
+        try:
+            from infra.tools.image_reference_finder import find_product_reference_image
+            query = f"{lp_name or hero_sec.get('title', '')} product"
+            img_url = await find_product_reference_image(query)
+            if img_url:
+                hero_sec["image_url"] = img_url
+                logger.info(f"Auto-enriched hero image_url: {img_url[:80]}")
+        except Exception as exc:
+            logger.warning(f"Image auto-enrichment failed (non-critical): {exc}")
+
+    # Extract AI-generated CSS if present
+    custom_css = _extract_landing_css(content)
+
     landing_page = LandingPage(
         organization_id=org_id,
         brand_id=brand_id,
         name=lp_name,
-        status=AssetStatus.DRAFT,
+        status=LandingPageStatus.DRAFT,
+        custom_css=custom_css,
     )
     session.add(landing_page)
     await session.flush()
 
-    # Create sections
+    # Create sections — each in its own savepoint so a single bad enum value
+    # (e.g. a new type not yet in the PostgreSQL enum) doesn't roll back all others.
+    saved = 0
     for section_data in sections_data:
         section_type_str = section_data.get("section_type", "custom")
 
@@ -203,15 +242,23 @@ async def auto_persist_landing_sections(
             order=section_data.get("order", 1),
             is_visible=True,
             content=section_data.get("content"),
+            image_url=section_data.get("image_url"),
         )
-        session.add(section)
-
-    await session.flush()
+        try:
+            async with session.begin_nested():
+                session.add(section)
+                await session.flush()
+            saved += 1
+        except Exception as exc:
+            logger.warning(
+                f"Skipping section '{section_data.get('title')}' "
+                f"(type={section_type_str}): {exc}"
+            )
 
     logger.info(
         f"Auto-created landing page {landing_page.id} "
-        f"with {len(sections_data)} sections "
-        f"(source={source}) "
+        f"with {saved}/{len(sections_data)} sections "
+        f"(source={source}, custom_css={'yes' if custom_css else 'no'}) "
         f"for org {org_id}"
     )
 

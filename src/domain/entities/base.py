@@ -139,6 +139,11 @@ class AdPlatform(str, enum.Enum):
     EMAIL_MARKETING = "email_marketing"
 
 
+class LandingPageStatus(str, enum.Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+
+
 class LandingSectionType(str, enum.Enum):
     HERO = "hero"
     SOCIAL_PROOF = "social_proof"
@@ -161,6 +166,12 @@ class LandingSectionType(str, enum.Enum):
     COUNTDOWN = "countdown"
     TRUST_BADGES = "trust_badges"
     BRAND_STORY = "brand_story"
+    STATS_BAR = "stats_bar"
+    LOGO_WALL = "logo_wall"
+    CASE_STUDY = "case_study"
+    URGENCY_BANNER = "urgency_banner"
+    PROCESS_STEPS = "process_steps"
+    LEAD_FORM = "lead_form"
 
 
 class RecommendationStatus(str, enum.Enum):
